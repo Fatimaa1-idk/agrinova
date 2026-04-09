@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 
 // ── API Backend ───────────────────────────────────────────
-const API = 'http://localhost:8000/api';
+const API = 'https://agrinova-backend-yt2f.onrender.com/api';
 
 async function api(endpoint: string, method = 'GET', body?: object) {
   const token = localStorage.getItem('agrinova_token');
