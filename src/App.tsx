@@ -15,7 +15,17 @@ async function api(endpoint: string, method = 'GET', body?: object) {
   return res.json();
 }
 
-type Page = 'onboarding'|'inscription'|'connexion'|'marketplace'|'producteur'|'profil'|'chat'|'bot'|'panier'|'livraison'|'notation'|'ajouter';
+type Page = 'onboarding'|'inscription'|'connexion'|'marketplace'|'producteur'|'profil'|'chat'|'bot'|'panier'|'livraison'|'notation'|'ajouter'|'produit'|'mes-commandes'|'gestion-produits';
+
+const reponsesBot: Record<string, Record<string, string>> = {
+  FR: {
+    'Irrigation': "💧 Conseil irrigation : Les tomates ont besoin de 6-8L d'eau/plante/semaine. Arrosez tôt le matin pour éviter l'évaporation. Avec une humidité de sol < 20%, irriguez immédiatement !",
+    'Météo': "🌡️ Météo Sénégal : Températures actuelles 28-35°C. Saison sèche en cours. Prévisions : vents d'Est, pas de pluie prévue cette semaine. Protégez vos cultures du vent !",
+    'Prix marché': "💰 Prix du marché aujourd'hui :\n🍅 Tomates : 300-400 FCFA/kg\n🧅 Oignons : 500-700 FCFA/kg\n🥭 Mangues : 800-1200 FCFA/kg\n🌾 Mil : 250-300 FCFA/kg",
+    'Maladies': "🐛 Maladies courantes au Sénégal :\n• Mildiou (tomates) → traitement fongicide\n• Pucerons → savon noir dilué\n• Fusariose → rotation des cultures\n💡 Inspectez vos plants chaque matin !",
+    'Calendrier': "📅 Calendrier agricole Sénégal :\n• Janv-Mars : Cultures maraîchères\n• Avr-Juin : Préparation sols\n• Juil-Sept : Hivernage, mil, sorgho\n• Oct-Déc : Récoltes, arachides",
+  }
+};
 
 export default function App() {
   const [page, setPage] = useState<Page>('onboarding');
@@ -27,11 +37,20 @@ export default function App() {
   const [chargement, setChargement] = useState(false);
   const [categorie, setCategorie] = useState('Légumes');
   const [recherche, setRecherche] = useState('');
+  const [produitSelectionne, setProduitSelectionne] = useState<any>(null);
+  const [panierItems, setPanierItems] = useState<any[]>([]);
+  const [adresseLivraison, setAdresseLivraison] = useState('');
+  const [mesCommandes, setMesCommandes] = useState<any[]>([]);
+  const [mesProduits, setMesProduits] = useState<any[]>([]);
   const [msgInput, setMsgInput] = useState('');
   const [messages, setMessages] = useState([
     {id:1,moi:false,texte:'Bonjour ! Vos tomates sont encore disponibles ?',heure:'09:12',lu:true},
     {id:2,moi:true,texte:"Oui, j'ai encore 50kg. Quelle quantité ?",heure:'09:15',lu:true},
   ]);
+  const [botMessages, setBotMessages] = useState([
+    {bot:true, texte:"Bonjour ! Je suis AgrinovaBot 🌱 Je peux vous aider sur les cultures, les prix du marché, la météo et bien plus. Cliquez sur un sujet ou posez votre question !"},
+  ]);
+  const [botInput, setBotInput] = useState('');
   const [noteEtoile, setNoteEtoile] = useState(0);
   const [commentaire, setCommentaire] = useState('');
   const [noteEnvoyee, setNoteEnvoyee] = useState(false);
@@ -39,6 +58,9 @@ export default function App() {
   const [nomProduit, setNomProduit] = useState('');
   const [prixProduit, setPrixProduit] = useState('');
   const [qteProduit, setQteProduit] = useState('');
+  const [descProduit, setDescProduit] = useState('');
+  const [locProduit, setLocProduit] = useState('');
+  const [catProduit, setCatProduit] = useState('Légumes');
   const [formNom, setFormNom] = useState('');
   const [formEmail, setFormEmail] = useState('');
   const [formMdp, setFormMdp] = useState('');
@@ -46,7 +68,7 @@ export default function App() {
   const [formLoc, setFormLoc] = useState('');
   const [formErreur, setFormErreur] = useState('');
   const [statsProducteur, setStatsProducteur] = useState({
-    produits:0, commandes:0, note:0.0, clients:0, revenus:0
+    produits:0,commandes:0,note:0.0,clients:0,revenus:0
   });
 
   const showToast = (msg: string) => {
@@ -65,27 +87,30 @@ export default function App() {
 
   const chargerStatsProducteur = async () => {
     try {
-      const [mesProduits, mesCommandes, profil] = await Promise.all([
-        api('/mes-produits'),
-        api('/mes-commandes'),
-        api('/auth/moi'),
+      const [mp, mc, profil] = await Promise.all([
+        api('/mes-produits'), api('/mes-commandes'), api('/auth/moi'),
       ]);
-      const nbProduits = Array.isArray(mesProduits) ? mesProduits.length : 0;
-      const nbCommandes = Array.isArray(mesCommandes) ? mesCommandes.length : 0;
-      const revenus = Array.isArray(mesCommandes)
-        ? mesCommandes.reduce((sum:number,c:any)=>sum+(c.montant_total||0),0) : 0;
-      const clients = Array.isArray(mesCommandes)
-        ? new Set(mesCommandes.map((c:any)=>c.acheteur_id)).size : 0;
-      setStatsProducteur({
-        produits:nbProduits, commandes:nbCommandes,
-        note:profil.note_globale||0.0, clients, revenus,
-      });
-    } catch(e) { console.log('Erreur stats'); }
+      const nbP = Array.isArray(mp)?mp.length:0;
+      const nbC = Array.isArray(mc)?mc.length:0;
+      const rev = Array.isArray(mc)?mc.reduce((s:number,c:any)=>s+(c.montant_total||0),0):0;
+      const cli = Array.isArray(mc)?new Set(mc.map((c:any)=>c.acheteur_id)).size:0;
+      setStatsProducteur({produits:nbP,commandes:nbC,note:profil.note_globale||0.0,clients:cli,revenus:rev});
+      if (Array.isArray(mp)) setMesProduits(mp);
+    } catch(e) {}
+  };
+
+  const chargerMesCommandes = async () => {
+    try {
+      const data = await api('/mes-commandes');
+      if (Array.isArray(data)) setMesCommandes(data);
+    } catch(e) {}
   };
 
   useEffect(()=>{
     if (page==='marketplace') chargerProduits();
     if (page==='producteur'&&utilisateur) chargerStatsProducteur();
+    if (page==='mes-commandes'&&utilisateur) chargerMesCommandes();
+    if (page==='gestion-produits'&&utilisateur) chargerStatsProducteur();
   },[page]);
 
   const seDeconnecter = () => {
@@ -99,31 +124,59 @@ export default function App() {
   const envoyer = () => {
     if (!msgInput.trim()) return;
     setMessages(prev=>[...prev,{
-      id:Date.now(), moi:true, texte:msgInput,
-      heure:new Date().toLocaleTimeString('fr',{hour:'2-digit',minute:'2-digit'}), lu:false
+      id:Date.now(),moi:true,texte:msgInput,
+      heure:new Date().toLocaleTimeString('fr',{hour:'2-digit',minute:'2-digit'}),lu:false
     }]);
     setMsgInput('');
     setTimeout(()=>setMessages(prev=>[...prev,{
-      id:Date.now()+1, moi:false, texte:'✅ Message reçu, merci ! 🌾',
-      heure:new Date().toLocaleTimeString('fr',{hour:'2-digit',minute:'2-digit'}), lu:false
+      id:Date.now()+1,moi:false,texte:'✅ Message reçu, merci ! 🌾',
+      heure:new Date().toLocaleTimeString('fr',{hour:'2-digit',minute:'2-digit'}),lu:false
     }]),1000);
   };
 
+  const envoyerBot = (texte?: string) => {
+    const question = texte || botInput;
+    if (!question.trim()) return;
+    setBotMessages(prev=>[...prev,{bot:false,texte:question}]);
+    setBotInput('');
+    setTimeout(()=>{
+      const rep = reponsesBot[lang]?.[question];
+      const reponse = rep || `🌱 Merci pour votre question sur "${question}". Je recherche les meilleures informations agricoles pour vous... Pour l'instant, je vous conseille de consulter un agronome local ou de contacter le service d'appui agricole le plus proche !`;
+      setBotMessages(prev=>[...prev,{bot:true,texte:reponse}]);
+    },1000);
+  };
+
+  const totalPanier = panierItems.reduce((s:number,i:any)=>s+(i.prix*i.qte),0);
+  const fraisLivraison = panierItems.length>0?500:0;
+  const commission = Math.round(totalPanier*0.03);
+  const totalFinal = totalPanier + fraisLivraison + commission;
+
   const produitsDemo = [
-    {id:1,nom:'Tomates de Thiès',description:'Récoltées ce matin',prix:350,localisation:'Thiès',note_globale:4.8,quantite_disponible:50,est_disponible:true,certifie:true,categorie:'Légumes',img:'https://lh3.googleusercontent.com/aida-public/AB6AXuCa_08BP1sGbXOaRBboTAzvPKJt8IKcRg1raquKfJg80Tf9i6H97egNk4EKSry0u6rmi5cU14PLkBrI2ljb5JQW86hKD4Uv0YzYMq1xs2phSXpXPu0OhDW0Lv6mPMrg4kHqjI2VHmX9gU9VSSwsmVevv60GcIQir6ZOcJ4Z7MRkNsMnPCq_1Glj4yHc0r3mILBfjSSq6vGJm6u4_bvg3_zZAH10UdzL4BTzNvivbyi34yyBzvbvIlDX6I9LSvZCsMB84ovqVZBVDjX4'},
-    {id:2,nom:'Oignons de Gandiol',description:'Gros calibre, rouge',prix:600,localisation:'Saint-Louis',note_globale:4.5,quantite_disponible:30,est_disponible:true,certifie:true,categorie:'Légumes',img:'https://lh3.googleusercontent.com/aida-public/AB6AXuA4tAKmwbXmnjjm7HVtq4gicOyBsAxNc2-YjsKBB_ULGudF973i33yABoowF9D-Yn146hwpGphPbLHaoxLoCoPGNwIHrYVOjyVb3vLQ3F5oldAg_blgLUQ3uL2OY0014W04XAS11IcjCNh7-uUz4z9EqYh3Oog3YJGMNfN6accATpKYEf5QMs7KAqPSR9QVGkMbnCpBD5qQSjeEjDefRELL2wVCu6MLp8fuw6QFxcKxMYG6Ss8Ki_3dyiAHk8Ad5TXdr1rM5ef3NVvM'},
-    {id:3,nom:'Mangues Kent',description:'Douces & sucrées',prix:1200,localisation:'Casamance',note_globale:4.9,quantite_disponible:0,est_disponible:false,certifie:false,categorie:'Fruits',img:'https://lh3.googleusercontent.com/aida-public/AB6AXuAvmW6dN0Okxa63B6P-8VCknPb19_gy9OKt_5Hn1GjzrTnNwWU4LCu6sG04ylCc7ma2r92SmVbZSz1kbMBPSqX6kdOfq00FNkrYQpoWk6oO47wxIX2NWp-NJN9XNvh286o5OKK7iqb7XLkzFlJsFrbLnIMGFrSrehboMOwUPMDat7_BroQE05IJc0RwpAg-cHEH2xBmziaL09vVT9MBNBX7eVBUmvsqxePoH27cW7omZ3FqkLfSdzzV88ZwkG7FNzrqcCWdHZ9YPy9o'},
-    {id:4,nom:'Riz de la Vallée',description:'Sac de 5kg disponible',prix:500,localisation:'Richard Toll',note_globale:4.2,quantite_disponible:100,est_disponible:true,certifie:true,categorie:'Céréales',img:'https://lh3.googleusercontent.com/aida-public/AB6AXuA1q14-9JE_SQXuEZ2shs8EAbGHawtSYmRdinApw_cYHJoLsDVVAUPbTJ80xN97_G6eLMK8KzqvQjshjtPnvBrkuPWk6KwWY1E66ZRLIhLVEWDUGI_CnrH9GcB4wn2o_zBIpOGqWdW8hNGJHLi7XxSF-pFYIeEcmmAfO5YHKpm5EatQRA2rks7CAVbsjWEWxt7tiZ6uNK3cJjzF-clXA0bwRP31tKGRCfBVzmf1SFrNxAiLBRIl2mcGSZJEL7ZOitPqJ6w1elM7qz2M'},
-    {id:5,nom:'Arachides du Saloum',description:'Fraîches et croquantes',prix:450,localisation:'Kaolack',note_globale:4.6,quantite_disponible:80,est_disponible:true,certifie:true,categorie:'Légumes',img:'https://images.unsplash.com/photo-1567306226416-28f0efdc88ce?q=80&w=400'},
-    {id:6,nom:'Papayes de Casamance',description:'Mûres à point',prix:800,localisation:'Ziguinchor',note_globale:4.7,quantite_disponible:25,est_disponible:true,certifie:false,categorie:'Fruits',img:'https://images.unsplash.com/photo-1526318472351-c75fcf070305?q=80&w=400'},
+    {id:1,nom:'Tomates de Thiès',description:'Récoltées ce matin, fraîches et savoureuses',prix:350,localisation:'Thiès',note_globale:4.8,quantite_disponible:50,est_disponible:true,certifie:true,categorie:'Légumes',img:'https://lh3.googleusercontent.com/aida-public/AB6AXuCa_08BP1sGbXOaRBboTAzvPKJt8IKcRg1raquKfJg80Tf9i6H97egNk4EKSry0u6rmi5cU14PLkBrI2ljb5JQW86hKD4Uv0YzYMq1xs2phSXpXPu0OhDW0Lv6mPMrg4kHqjI2VHmX9gU9VSSwsmVevv60GcIQir6ZOcJ4Z7MRkNsMnPCq_1Glj4yHc0r3mILBfjSSq6vGJm6u4_bvg3_zZAH10UdzL4BTzNvivbyi34yyBzvbvIlDX6I9LSvZCsMB84ovqVZBVDjX4'},
+    {id:2,nom:'Oignons de Gandiol',description:'Gros calibre, rouge, excellente conservation',prix:600,localisation:'Saint-Louis',note_globale:4.5,quantite_disponible:30,est_disponible:true,certifie:true,categorie:'Légumes',img:'https://lh3.googleusercontent.com/aida-public/AB6AXuA4tAKmwbXmnjjm7HVtq4gicOyBsAxNc2-YjsKBB_ULGudF973i33yABoowF9D-Yn146hwpGphPbLHaoxLoCoPGNwIHrYVOjyVb3vLQ3F5oldAg_blgLUQ3uL2OY0014W04XAS11IcjCNh7-uUz4z9EqYh3Oog3YJGMNfN6accATpKYEf5QMs7KAqPSR9QVGkMbnCpBD5qQSjeEjDefRELL2wVCu6MLp8fuw6QFxcKxMYG6Ss8Ki_3dyiAHk8Ad5TXdr1rM5ef3NVvM'},
+    {id:3,nom:'Mangues Kent',description:'Douces & sucrées, parfaites pour jus',prix:1200,localisation:'Casamance',note_globale:4.9,quantite_disponible:0,est_disponible:false,certifie:false,categorie:'Fruits',img:'https://lh3.googleusercontent.com/aida-public/AB6AXuAvmW6dN0Okxa63B6P-8VCknPb19_gy9OKt_5Hn1GjzrTnNwWU4LCu6sG04ylCc7ma2r92SmVbZSz1kbMBPSqX6kdOfq00FNkrYQpoWk6oO47wxIX2NWp-NJN9XNvh286o5OKK7iqb7XLkzFlJsFrbLnIMGFrSrehboMOwUPMDat7_BroQE05IJc0RwpAg-cHEH2xBmziaL09vVT9MBNBX7eVBUmvsqxePoH27cW7omZ3FqkLfSdzzV88ZwkG7FNzrqcCWdHZ9YPy9o'},
+    {id:4,nom:'Riz de la Vallée',description:'Sac de 5kg disponible, qualité premium',prix:500,localisation:'Richard Toll',note_globale:4.2,quantite_disponible:100,est_disponible:true,certifie:true,categorie:'Céréales',img:'https://lh3.googleusercontent.com/aida-public/AB6AXuA1q14-9JE_SQXuEZ2shs8EAbGHawtSYmRdinApw_cYHJoLsDVVAUPbTJ80xN97_G6eLMK8KzqvQjshjtPnvBrkuPWk6KwWY1E66ZRLIhLVEWDUGI_CnrH9GcB4wn2o_zBIpOGqWdW8hNGJHLi7XxSF-pFYIeEcmmAfO5YHKpm5EatQRA2rks7CAVbsjWEWxt7tiZ6uNK3cJjzF-clXA0bwRP31tKGRCfBVzmf1SFrNxAiLBRIl2mcGSZJEL7ZOitPqJ6w1elM7qz2M'},
+    {id:5,nom:'Arachides du Saloum',description:'Fraîches et croquantes, production locale',prix:450,localisation:'Kaolack',note_globale:4.6,quantite_disponible:80,est_disponible:true,certifie:true,categorie:'Légumineuses',img:'https://images.unsplash.com/photo-1567306226416-28f0efdc88ce?q=80&w=400'},
+    {id:6,nom:'Papayes de Casamance',description:'Mûres à point, très sucrées',prix:800,localisation:'Ziguinchor',note_globale:4.7,quantite_disponible:25,est_disponible:true,certifie:false,categorie:'Fruits',img:'https://images.unsplash.com/photo-1526318472351-c75fcf070305?q=80&w=400'},
   ];
 
-  const tousLesProduits = produits.length > 0 ? produits : produitsDemo;
+  const tousLesProduits = produits.length>0?produits:produitsDemo;
   const produitsFiltres = tousLesProduits.filter(p=>{
-    const matchCat = categorie==='Livraison' || !p.categorie || p.categorie===categorie || categorie==='Légumes';
-    const matchRecherche = !recherche || p.nom.toLowerCase().includes(recherche.toLowerCase());
-    return matchRecherche;
+    const matchCat = p.categorie===categorie||!p.categorie;
+    const matchRecherche = !recherche||p.nom.toLowerCase().includes(recherche.toLowerCase())||p.localisation?.toLowerCase().includes(recherche.toLowerCase());
+    return matchCat&&matchRecherche;
   });
+
+  const ajouterAuPanier = (p: any) => {
+    if(!utilisateur){showToast('⚠️ Connecte-toi pour commander !');setPage('connexion');return;}
+    const existe = panierItems.find((i:any)=>i.id===p.id);
+    if(existe){
+      setPanierItems(prev=>prev.map((i:any)=>i.id===p.id?{...i,qte:i.qte+1}:i));
+    }else{
+      setPanierItems(prev=>[...prev,{...p,qte:1}]);
+    }
+    showToast(`✅ ${p.nom} ajouté au panier !`);
+  };
 
   const Nav = ({actif}:{actif:string}) => (
     <nav style={{position:'fixed',bottom:0,left:0,width:'100%',zIndex:50,display:'flex',justifyContent:'space-around',alignItems:'center',padding:'12px 16px 24px',background:'rgba(255,255,255,0.95)',backdropFilter:'blur(20px)',boxShadow:'0 -8px 30px rgba(0,0,0,0.08)',borderRadius:'40px 40px 0 0'}}>
@@ -135,17 +188,22 @@ export default function App() {
         {icon:'👤',label:'Profil',p:utilisateur?.role==='producteur'?'producteur':'profil'},
       ].map(item=>(
         <button key={item.label} onClick={()=>setPage(item.p as Page)}
-          style={{display:'flex',flexDirection:'column',alignItems:'center',gap:'4px',border:'none',cursor:'pointer',padding:'8px 16px',borderRadius:'20px',background:actif===item.p?'#012d1d':'transparent',color:actif===item.p?'white':'#a8a29e'}}>
+          style={{display:'flex',flexDirection:'column',alignItems:'center',gap:'4px',border:'none',cursor:'pointer',padding:'8px 16px',borderRadius:'20px',background:actif===item.p?'#012d1d':'transparent',color:actif===item.p?'white':'#a8a29e',position:'relative'}}>
           <span style={{fontSize:'22px'}}>{item.icon}</span>
           <span style={{fontSize:'10px',fontWeight:'900',textTransform:'uppercase',letterSpacing:'1px'}}>{item.label}</span>
+          {item.p==='marketplace'&&panierItems.length>0&&(
+            <span style={{position:'absolute',top:'4px',right:'8px',background:'#ef4444',color:'white',borderRadius:'50%',width:'18px',height:'18px',display:'flex',alignItems:'center',justifyContent:'center',fontSize:'10px',fontWeight:'bold'}}>
+              {panierItems.reduce((s:number,i:any)=>s+i.qte,0)}
+            </span>
+          )}
         </button>
       ))}
     </nav>
   );
 
-  const Toast = () => toast ? (
+  const Toast = () => toast?(
     <div style={{position:'fixed',top:'20px',left:'50%',transform:'translateX(-50%)',background:'#012d1d',color:'white',padding:'14px 28px',borderRadius:'50px',fontWeight:'bold',zIndex:999,boxShadow:'0 8px 30px rgba(0,0,0,0.2)',fontSize:'15px',whiteSpace:'nowrap'}}>{toast}</div>
-  ) : null;
+  ):null;
 
   // ── ONBOARDING ────────────────────────────────────────────
   if (page==='onboarding') return (
@@ -301,7 +359,7 @@ export default function App() {
               localStorage.setItem('agrinova_token',data.token);
               localStorage.setItem('agrinova_user',JSON.stringify(data.utilisateur));
               setUtilisateur(data.utilisateur);
-              showToast(`✅ Connexion réussie ! Bienvenue ${data.utilisateur.nom} 🌾`);
+              showToast(`✅ Bienvenue ${data.utilisateur.nom} 🌾`);
               setPage(data.utilisateur.role==='producteur'?'producteur':'marketplace');
             }else{setFormErreur(data.detail||'Email ou mot de passe incorrect');}
           }catch{setFormErreur('Impossible de contacter le serveur');}
@@ -322,10 +380,8 @@ export default function App() {
         <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',padding:'16px 24px',maxWidth:'1200px',margin:'0 auto'}}>
           <div style={{display:'flex',alignItems:'center',gap:'12px'}}>
             <div style={{width:'40px',height:'40px',borderRadius:'50%',overflow:'hidden',background:'#eae8e3',display:'flex',alignItems:'center',justifyContent:'center'}}>
-              {utilisateur
-                ?<div style={{width:'100%',height:'100%',background:'#1b4332',display:'flex',alignItems:'center',justifyContent:'center',color:'white',fontWeight:'bold',fontSize:'16px'}}>{utilisateur.nom[0].toUpperCase()}</div>
-                :<img src="https://lh3.googleusercontent.com/aida-public/AB6AXuBICydwOHLv1q4pAgCL8VlbkiZETPit4U9EDWkqBP9FesgExbdM55Jk1m0cJfKVdShoJ2PaQj3cfpYNpZV7ztAJ_U3LmuIb1EEL0vHkGhR9_LAGtDJZ640BEirzv92WVXTD1reetW70PrR02xRMBsxsnRaHYOXB50o0FMGMVazmt17VipGeomWVxgmjzgk9FN3hUdr8sgBAdQUMF3fR2st7T1wPSFPKdolgNEHhUXbvX4RdSrtkx7oXgLarjhw3A_9meghkOosn0hEj" alt="" style={{width:'100%',height:'100%',objectFit:'cover'}}/>
-              }
+              {utilisateur?<div style={{width:'100%',height:'100%',background:'#1b4332',display:'flex',alignItems:'center',justifyContent:'center',color:'white',fontWeight:'bold',fontSize:'16px'}}>{utilisateur.nom[0].toUpperCase()}</div>
+              :<img src="https://lh3.googleusercontent.com/aida-public/AB6AXuBICydwOHLv1q4pAgCL8VlbkiZETPit4U9EDWkqBP9FesgExbdM55Jk1m0cJfKVdShoJ2PaQj3cfpYNpZV7ztAJ_U3LmuIb1EEL0vHkGhR9_LAGtDJZ640BEirzv92WVXTD1reetW70PrR02xRMBsxsnRaHYOXB50o0FMGMVazmt17VipGeomWVxgmjzgk9FN3hUdr8sgBAdQUMF3fR2st7T1wPSFPKdolgNEHhUXbvX4RdSrtkx7oXgLarjhw3A_9meghkOosn0hEj" alt="" style={{width:'100%',height:'100%',objectFit:'cover'}}/>}
             </div>
             <div>
               <h1 style={{color:'#012d1d',fontWeight:'900',fontSize:'20px',letterSpacing:'-1px',textTransform:'uppercase',margin:0}}>AGRINOVA</h1>
@@ -333,49 +389,37 @@ export default function App() {
             </div>
           </div>
           <div style={{display:'flex',gap:'8px',alignItems:'center'}}>
+            {panierItems.length>0&&(
+              <button onClick={()=>setPage('panier')}
+                style={{background:'#FFA000',border:'none',borderRadius:'50px',padding:'8px 16px',cursor:'pointer',fontWeight:'bold',color:'#012d1d',fontSize:'13px',display:'flex',alignItems:'center',gap:'6px'}}>
+                🛒 {panierItems.reduce((s:number,i:any)=>s+i.qte,0)} article{panierItems.reduce((s:number,i:any)=>s+i.qte,0)>1?'s':''}
+              </button>
+            )}
             {!utilisateur&&<button onClick={()=>setPage('connexion')} style={{background:'#012d1d',color:'white',border:'none',borderRadius:'12px',padding:'8px 16px',cursor:'pointer',fontWeight:'bold',fontSize:'13px'}}>Se connecter</button>}
-            <button onClick={()=>setPage('chat')} style={{width:'40px',height:'40px',display:'flex',alignItems:'center',justifyContent:'center',borderRadius:'50%',border:'none',background:'transparent',cursor:'pointer',fontSize:'22px'}}>💬</button>
+            {utilisateur&&<button onClick={()=>setPage('mes-commandes')} style={{background:'none',border:'none',cursor:'pointer',fontSize:'22px'}}>📦</button>}
           </div>
         </div>
       </div>
 
       <div style={{maxWidth:'1200px',margin:'0 auto',padding:'16px 24px'}}>
-        {/* Recherche */}
         <div style={{position:'relative',marginBottom:'16px'}}>
           <span style={{position:'absolute',left:'16px',top:'50%',transform:'translateY(-50%)',fontSize:'20px'}}>🔍</span>
-          <input
-            value={recherche}
-            onChange={e=>setRecherche(e.target.value)}
-            placeholder="Chercher un produit..."
-            style={{width:'100%',paddingLeft:'48px',paddingRight:'24px',paddingTop:'16px',paddingBottom:'16px',background:'#e4e2dd',border:'none',borderRadius:'16px',fontSize:'16px',outline:'none',boxSizing:'border-box'}}/>
-          {recherche&&(
-            <button onClick={()=>setRecherche('')}
-              style={{position:'absolute',right:'16px',top:'50%',transform:'translateY(-50%)',background:'none',border:'none',cursor:'pointer',fontSize:'18px',color:'#717973'}}>✕</button>
-          )}
+          <input value={recherche} onChange={e=>setRecherche(e.target.value)}
+            placeholder="Chercher un produit, une région..."
+            style={{width:'100%',paddingLeft:'48px',paddingRight:'48px',paddingTop:'16px',paddingBottom:'16px',background:'#e4e2dd',border:'none',borderRadius:'16px',fontSize:'16px',outline:'none',boxSizing:'border-box'}}/>
+          {recherche&&<button onClick={()=>setRecherche('')} style={{position:'absolute',right:'16px',top:'50%',transform:'translateY(-50%)',background:'none',border:'none',cursor:'pointer',fontSize:'18px',color:'#717973'}}>✕</button>}
         </div>
 
-        {/* Filtres */}
-        <div style={{display:'flex',gap:'12px',overflowX:'auto',paddingBottom:'8px',marginBottom:'32px'}}>
-          {[
-            {label:'🥦 Légumes',cat:'Légumes'},
-            {label:'🍊 Fruits',cat:'Fruits'},
-            {label:'🌾 Céréales',cat:'Céréales'},
-            {label:'🥜 Légumineuses',cat:'Légumineuses'},
-          ].map(f=>(
-            <button key={f.cat}
-              onClick={()=>setCategorie(f.cat)}
+        <div style={{display:'flex',gap:'12px',overflowX:'auto',paddingBottom:'8px',marginBottom:'24px'}}>
+          {[{label:'🥦 Légumes',cat:'Légumes'},{label:'🍊 Fruits',cat:'Fruits'},{label:'🌾 Céréales',cat:'Céréales'},{label:'🥜 Légumineuses',cat:'Légumineuses'}].map(f=>(
+            <button key={f.cat} onClick={()=>setCategorie(f.cat)}
               style={{whiteSpace:'nowrap',padding:'12px 20px',borderRadius:'16px',border:'none',cursor:'pointer',fontWeight:'bold',fontSize:'14px',background:categorie===f.cat?'#012d1d':'#eae8e3',color:categorie===f.cat?'white':'#414844',transition:'all 0.2s',boxShadow:categorie===f.cat?'0 4px 12px rgba(1,45,29,0.3)':'none'}}>
               {f.label}
             </button>
           ))}
         </div>
 
-        {/* Résultats */}
-        {recherche&&(
-          <p style={{color:'#717973',fontSize:'14px',marginBottom:'16px'}}>
-            {produitsFiltres.length} résultat{produitsFiltres.length!==1?'s':''} pour "<strong>{recherche}</strong>"
-          </p>
-        )}
+        {recherche&&<p style={{color:'#717973',fontSize:'14px',marginBottom:'16px'}}>{produitsFiltres.length} résultat{produitsFiltres.length!==1?'s':''} pour "<strong>{recherche}</strong>"</p>}
 
         {chargement?(
           <div style={{textAlign:'center',padding:'60px',color:'#717973'}}>
@@ -384,72 +428,155 @@ export default function App() {
           </div>
         ):(
           <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fill, minmax(260px, 1fr))',gap:'24px'}}>
-            {produitsFiltres
-              .filter(p=>categorie==='Légumes'||p.categorie===categorie)
-              .map((p:any)=>(
+            {produitsFiltres.map((p:any)=>(
               <div key={p.id} style={{background:'white',borderRadius:'32px',overflow:'hidden',boxShadow:'0 2px 12px rgba(0,0,0,0.06)',border:'1px solid #f0eee9',transition:'transform 0.2s'}}
                 onMouseEnter={e=>(e.currentTarget.style.transform='translateY(-4px)')}
                 onMouseLeave={e=>(e.currentTarget.style.transform='translateY(0)')}>
-                <div style={{position:'relative',height:'220px',overflow:'hidden',background:'#f0eee9'}}>
-                  {p.img||p.photo
-                    ?<img src={p.img||p.photo} alt={p.nom} style={{width:'100%',height:'100%',objectFit:'cover'}}/>
-                    :<div style={{width:'100%',height:'100%',display:'flex',alignItems:'center',justifyContent:'center',fontSize:'64px',background:'linear-gradient(135deg,#d8f3dc,#a8d5b5)'}}>🌿</div>
-                  }
+                <div style={{position:'relative',height:'200px',overflow:'hidden',background:'#f0eee9',cursor:'pointer'}} onClick={()=>{setProduitSelectionne(p);setPage('produit');}}>
+                  {p.img||p.photo?<img src={p.img||p.photo} alt={p.nom} style={{width:'100%',height:'100%',objectFit:'cover'}}/>
+                  :<div style={{width:'100%',height:'100%',display:'flex',alignItems:'center',justifyContent:'center',fontSize:'64px',background:'linear-gradient(135deg,#d8f3dc,#a8d5b5)'}}>🌿</div>}
                   {p.certifie&&<div style={{position:'absolute',top:'12px',left:'12px',background:'rgba(255,255,255,0.9)',padding:'5px 10px',borderRadius:'50px',fontSize:'11px',fontWeight:'900',border:'1px solid #fbbf24',color:'#012d1d'}}>⭐ Certifié</div>}
                   <div style={{position:'absolute',bottom:'12px',left:'12px',background:p.est_disponible&&p.quantite_disponible>0?'#22c55e':'#ef4444',color:'white',padding:'3px 10px',borderRadius:'50px',fontSize:'10px',fontWeight:'bold'}}>
                     {p.est_disponible&&p.quantite_disponible>0?'✅ EN STOCK':'❌ ÉPUISÉ'}
                   </div>
                 </div>
                 <div style={{padding:'20px'}}>
-                  <h3 style={{fontWeight:'900',color:'#012d1d',fontSize:'18px',margin:'0 0 4px'}}>{p.nom}</h3>
-                  <p style={{fontSize:'12px',color:'#717973',margin:'0 0 12px'}}>{p.description}</p>
-                  <div style={{display:'flex',alignItems:'baseline',gap:'4px',marginBottom:'12px'}}>
-                    <span style={{fontSize:'26px',fontWeight:'900',color:'#4b6546'}}>{p.prix?.toLocaleString()}</span>
+                  <h3 style={{fontWeight:'900',color:'#012d1d',fontSize:'17px',margin:'0 0 4px',cursor:'pointer'}} onClick={()=>{setProduitSelectionne(p);setPage('produit');}}>{p.nom}</h3>
+                  <p style={{fontSize:'12px',color:'#717973',margin:'0 0 10px'}}>{p.description}</p>
+                  <div style={{display:'flex',alignItems:'baseline',gap:'4px',marginBottom:'10px'}}>
+                    <span style={{fontSize:'24px',fontWeight:'900',color:'#4b6546'}}>{p.prix?.toLocaleString()}</span>
                     <span style={{fontSize:'13px',fontWeight:'bold',color:'#4b6546'}}>FCFA/kg</span>
                   </div>
-                  <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',paddingTop:'12px',borderTop:'1px solid rgba(193,200,194,0.3)',marginBottom:p.est_disponible&&p.quantite_disponible>0?'12px':'0'}}>
+                  <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',paddingBottom:'12px',borderBottom:'1px solid rgba(193,200,194,0.3)',marginBottom:'12px'}}>
                     <span style={{fontSize:'12px',fontWeight:'bold',color:'#414844'}}>📍 {p.localisation}</span>
                     <span style={{fontSize:'12px',fontWeight:'bold',background:'#ffdfa0',color:'#261a00',padding:'3px 8px',borderRadius:'8px'}}>⭐ {p.note_globale||'N/A'}</span>
                   </div>
-                  {p.est_disponible&&p.quantite_disponible>0&&(
-                    <button onClick={()=>{
-                      if(!utilisateur){showToast('⚠️ Connecte-toi pour commander !');setPage('connexion');return;}
-                      setPage('panier');
-                    }} style={{width:'100%',padding:'12px',background:'#012d1d',color:'white',border:'none',borderRadius:'12px',fontWeight:'bold',cursor:'pointer',fontSize:'14px'}}>
-                      🛒 Commander
+                  <div style={{display:'flex',gap:'8px'}}>
+                    <button onClick={()=>{setProduitSelectionne(p);setPage('produit');}}
+                      style={{flex:1,padding:'10px',background:'#f0eee9',color:'#012d1d',border:'none',borderRadius:'12px',fontWeight:'bold',cursor:'pointer',fontSize:'13px'}}>
+                      👁 Détails
                     </button>
-                  )}
+                    {p.est_disponible&&p.quantite_disponible>0&&(
+                      <button onClick={()=>ajouterAuPanier(p)}
+                        style={{flex:1,padding:'10px',background:'#012d1d',color:'white',border:'none',borderRadius:'12px',fontWeight:'bold',cursor:'pointer',fontSize:'13px'}}>
+                        🛒 Ajouter
+                      </button>
+                    )}
+                  </div>
                 </div>
               </div>
             ))}
           </div>
         )}
 
-        {produitsFiltres.filter(p=>categorie==='Légumes'||p.categorie===categorie).length===0&&!chargement&&(
+        {produitsFiltres.length===0&&!chargement&&(
           <div style={{textAlign:'center',padding:'60px 20px',color:'#aaa'}}>
             <p style={{fontSize:'48px',marginBottom:'16px'}}>🌿</p>
-            <p style={{fontWeight:'700',fontSize:'18px',marginBottom:'8px'}}>
-              {recherche?`Aucun résultat pour "${recherche}"`:'Aucun produit dans cette catégorie'}
-            </p>
-            {utilisateur?.role==='producteur'&&!recherche&&(
-              <button onClick={()=>setPage('ajouter')} style={{background:'#012d1d',color:'white',border:'none',borderRadius:'14px',padding:'14px 28px',fontWeight:'bold',cursor:'pointer',fontSize:'16px',marginTop:'16px'}}>
-                ➕ Publier un produit
-              </button>
-            )}
+            <p style={{fontWeight:'700',fontSize:'18px',marginBottom:'8px'}}>{recherche?`Aucun résultat pour "${recherche}"`:'Aucun produit dans cette catégorie'}</p>
+            {utilisateur?.role==='producteur'&&!recherche&&<button onClick={()=>setPage('ajouter')} style={{background:'#012d1d',color:'white',border:'none',borderRadius:'14px',padding:'14px 28px',fontWeight:'bold',cursor:'pointer',fontSize:'16px',marginTop:'16px'}}>➕ Publier un produit</button>}
           </div>
         )}
-      </div>
-
-      <div style={{position:'fixed',bottom:'96px',left:0,width:'100%',display:'flex',justifyContent:'center',zIndex:40}}>
-        <button onClick={()=>chargerProduits()} style={{background:'#012d1d',color:'white',padding:'16px 32px',borderRadius:'50px',fontWeight:'900',fontSize:'16px',border:'none',cursor:'pointer',boxShadow:'0 8px 30px rgba(1,45,29,0.4)'}}>
-          🔄 Actualiser ({produitsFiltres.filter(p=>categorie==='Légumes'||p.categorie===categorie).length})
-        </button>
       </div>
       <Nav actif="marketplace"/>
     </div>
   );
 
-  // ── PRODUCTEUR (LinkedIn style) ───────────────────────────
+  // ── PRODUIT DÉTAILLÉ ──────────────────────────────────────
+  if (page==='produit'&&produitSelectionne) return (
+    <div style={{minHeight:'100vh',background:'#fbf9f4',paddingBottom:'120px'}}>
+      <Toast/>
+      <div style={{background:'white',position:'sticky',top:0,zIndex:40,boxShadow:'0 2px 12px rgba(0,0,0,0.06)'}}>
+        <div style={{display:'flex',alignItems:'center',gap:'12px',padding:'16px 24px'}}>
+          <button onClick={()=>setPage('marketplace')} style={{background:'none',border:'none',cursor:'pointer',fontSize:'24px'}}>←</button>
+          <h1 style={{color:'#012d1d',fontWeight:'900',fontSize:'18px',margin:0,flex:1}}>{produitSelectionne.nom}</h1>
+          <button onClick={()=>ajouterAuPanier(produitSelectionne)} style={{background:'#FFA000',color:'#012d1d',border:'none',borderRadius:'12px',padding:'8px 16px',cursor:'pointer',fontWeight:'bold',fontSize:'13px'}}>🛒 Ajouter</button>
+        </div>
+      </div>
+
+      <div style={{height:'320px',overflow:'hidden',position:'relative',background:'linear-gradient(135deg,#d8f3dc,#a8d5b5)'}}>
+        {produitSelectionne.img||produitSelectionne.photo
+          ?<img src={produitSelectionne.img||produitSelectionne.photo} alt={produitSelectionne.nom} style={{width:'100%',height:'100%',objectFit:'cover'}}/>
+          :<div style={{width:'100%',height:'100%',display:'flex',alignItems:'center',justifyContent:'center',fontSize:'100px'}}>🌿</div>}
+        {produitSelectionne.certifie&&<div style={{position:'absolute',top:'16px',left:'16px',background:'rgba(255,255,255,0.95)',padding:'8px 16px',borderRadius:'50px',fontSize:'13px',fontWeight:'900',border:'1px solid #fbbf24',color:'#012d1d'}}>⭐ Vendeur Certifié</div>}
+        <div style={{position:'absolute',bottom:'16px',left:'16px',background:produitSelectionne.est_disponible&&produitSelectionne.quantite_disponible>0?'#22c55e':'#ef4444',color:'white',padding:'6px 16px',borderRadius:'50px',fontSize:'12px',fontWeight:'bold'}}>
+          {produitSelectionne.est_disponible&&produitSelectionne.quantite_disponible>0?'✅ EN STOCK':'❌ ÉPUISÉ'}
+        </div>
+      </div>
+
+      <div style={{maxWidth:'600px',margin:'0 auto',padding:'24px',display:'flex',flexDirection:'column',gap:'16px'}}>
+        <div style={{background:'white',borderRadius:'24px',padding:'24px',boxShadow:'0 2px 12px rgba(0,0,0,0.06)'}}>
+          <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start',marginBottom:'12px'}}>
+            <div>
+              <h2 style={{fontWeight:'900',color:'#012d1d',fontSize:'24px',margin:'0 0 4px'}}>{produitSelectionne.nom}</h2>
+              <p style={{color:'#717973',fontSize:'14px',margin:0}}>{produitSelectionne.description}</p>
+            </div>
+            <div style={{background:'#ffdfa0',color:'#261a00',padding:'6px 12px',borderRadius:'12px',fontWeight:'bold',fontSize:'14px',flexShrink:0}}>⭐ {produitSelectionne.note_globale||'N/A'}</div>
+          </div>
+          <div style={{display:'flex',alignItems:'baseline',gap:'6px',marginBottom:'16px'}}>
+            <span style={{fontSize:'36px',fontWeight:'900',color:'#2d6a4f'}}>{produitSelectionne.prix?.toLocaleString()}</span>
+            <span style={{fontSize:'16px',fontWeight:'bold',color:'#2d6a4f'}}>FCFA/kg</span>
+          </div>
+          <div style={{display:'flex',gap:'16px',paddingTop:'16px',borderTop:'1px solid #f0eee9',flexWrap:'wrap'}}>
+            <div><p style={{fontSize:'12px',color:'#717973',margin:'0 0 2px'}}>📍 Localisation</p><p style={{fontWeight:'bold',color:'#012d1d',margin:0}}>{produitSelectionne.localisation}</p></div>
+            <div><p style={{fontSize:'12px',color:'#717973',margin:'0 0 2px'}}>📦 Stock</p><p style={{fontWeight:'bold',color:'#012d1d',margin:0}}>{produitSelectionne.quantite_disponible} kg</p></div>
+            <div><p style={{fontSize:'12px',color:'#717973',margin:'0 0 2px'}}>🏷️ Catégorie</p><p style={{fontWeight:'bold',color:'#012d1d',margin:0}}>{produitSelectionne.categorie||'N/A'}</p></div>
+          </div>
+        </div>
+
+        <div style={{background:'white',borderRadius:'24px',padding:'24px',boxShadow:'0 2px 12px rgba(0,0,0,0.06)'}}>
+          <h3 style={{fontWeight:'800',color:'#012d1d',fontSize:'16px',margin:'0 0 16px'}}>👨‍🌾 Le Producteur</h3>
+          <div style={{display:'flex',alignItems:'center',gap:'16px',marginBottom:'16px'}}>
+            <div style={{width:'56px',height:'56px',borderRadius:'50%',background:'#1b4332',display:'flex',alignItems:'center',justifyContent:'center',color:'white',fontWeight:'bold',fontSize:'22px',flexShrink:0}}>M</div>
+            <div style={{flex:1}}>
+              <p style={{fontWeight:'900',color:'#012d1d',fontSize:'16px',margin:0}}>Moussa Diop</p>
+              <p style={{color:'#717973',fontSize:'13px',margin:'2px 0 0'}}>📍 {produitSelectionne.localisation} • ✅ Certifié Agrinova</p>
+            </div>
+            <div style={{background:'#ffdfa0',color:'#261a00',padding:'4px 10px',borderRadius:'8px',fontWeight:'bold',fontSize:'13px'}}>⭐ 4.8</div>
+          </div>
+          <div style={{display:'flex',gap:'8px'}}>
+            <button onClick={()=>setPage('chat')} style={{flex:1,padding:'12px',background:'#012d1d',color:'white',border:'none',borderRadius:'12px',fontWeight:'bold',cursor:'pointer',fontSize:'14px'}}>💬 Contacter</button>
+            <button onClick={()=>setPage('profil')} style={{flex:1,padding:'12px',background:'#f0faf3',color:'#012d1d',border:'1px solid #cdebc4',borderRadius:'12px',fontWeight:'bold',cursor:'pointer',fontSize:'14px'}}>👁 Voir profil</button>
+          </div>
+        </div>
+
+        <div style={{background:'white',borderRadius:'24px',padding:'24px',boxShadow:'0 2px 12px rgba(0,0,0,0.06)'}}>
+          <h3 style={{fontWeight:'800',color:'#012d1d',fontSize:'16px',margin:'0 0 16px'}}>⭐ Avis clients</h3>
+          {[
+            {nom:'Amadou Sall',note:5,txt:'Excellent produit, très frais et bien emballé !',date:'Il y a 2 jours'},
+            {nom:'Fatou Ndiaye',note:4,txt:'Bonne qualité, livraison rapide. Je recommande !',date:'La semaine dernière'},
+          ].map((r,i)=>(
+            <div key={i} style={{paddingBottom:'16px',marginBottom:i===0?'16px':'0',borderBottom:i===0?'1px solid #f0eee9':'none'}}>
+              <div style={{display:'flex',justifyContent:'space-between',marginBottom:'8px'}}>
+                <div><p style={{fontWeight:'bold',color:'#012d1d',fontSize:'14px',margin:0}}>{r.nom}</p><p style={{color:'#f6be39',fontSize:'14px',margin:0}}>{'⭐'.repeat(r.note)}</p></div>
+                <span style={{fontSize:'12px',color:'#717973'}}>{r.date}</span>
+              </div>
+              <p style={{fontSize:'14px',color:'#414844',fontStyle:'italic',margin:0}}>"{r.txt}"</p>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {produitSelectionne.est_disponible&&produitSelectionne.quantite_disponible>0&&(
+        <div style={{position:'fixed',bottom:0,left:0,right:0,padding:'20px 24px',background:'white',boxShadow:'0 -4px 20px rgba(0,0,0,0.08)',borderRadius:'24px 24px 0 0'}}>
+          <div style={{display:'flex',gap:'12px',maxWidth:'600px',margin:'0 auto'}}>
+            <button onClick={()=>ajouterAuPanier(produitSelectionne)}
+              style={{flex:1,padding:'18px',background:'#f0faf3',color:'#012d1d',border:'2px solid #cdebc4',borderRadius:'16px',fontWeight:'900',fontSize:'16px',cursor:'pointer'}}>
+              🛒 Ajouter au panier
+            </button>
+            <button onClick={()=>{
+              if(!utilisateur){showToast('⚠️ Connecte-toi !');setPage('connexion');return;}
+              setPanierItems([{...produitSelectionne,qte:1}]);
+              setPage('panier');
+            }} style={{flex:1,padding:'18px',background:'#012d1d',color:'white',border:'none',borderRadius:'16px',fontWeight:'900',fontSize:'16px',cursor:'pointer',boxShadow:'0 8px 24px rgba(1,45,29,0.3)'}}>
+              ⚡ Commander
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+
+  // ── PRODUCTEUR ────────────────────────────────────────────
   if (page==='producteur') return (
     <div style={{minHeight:'100vh',background:'#f3f2ef',paddingBottom:'100px'}}>
       <Toast/>
@@ -460,25 +587,18 @@ export default function App() {
         </div>
       </div>
       <div style={{maxWidth:'900px',margin:'0 auto'}}>
-        {/* Carte profil */}
         <div style={{background:'white',marginBottom:'12px',borderRadius:'0 0 12px 12px',overflow:'hidden',boxShadow:'0 2px 8px rgba(0,0,0,0.06)'}}>
           <div style={{height:'160px',background:'linear-gradient(135deg,#012d1d 0%,#1b4332 50%,#2d6a4f 100%)',position:'relative'}}>
             <div style={{position:'absolute',inset:0,opacity:0.15,backgroundImage:'url(https://images.unsplash.com/photo-1500382017468-9049fed747ef?q=80&w=2000)',backgroundSize:'cover',backgroundPosition:'center'}}/>
           </div>
-          <div style={{padding:'0 24px 24px',position:'relative'}}>
+          <div style={{padding:'0 24px 24px'}}>
             <div style={{marginTop:'-48px',marginBottom:'12px',display:'flex',justifyContent:'space-between',alignItems:'flex-end',flexWrap:'wrap',gap:'12px'}}>
               <div style={{width:'96px',height:'96px',borderRadius:'50%',border:'4px solid white',background:'linear-gradient(135deg,#012d1d,#1b4332)',display:'flex',alignItems:'center',justifyContent:'center',color:'white',fontWeight:'bold',fontSize:'36px',boxShadow:'0 4px 16px rgba(0,0,0,0.2)'}}>
                 {utilisateur?.nom?.[0]?.toUpperCase()||'P'}
               </div>
-              <div style={{display:'flex',gap:'8px',paddingBottom:'4px'}}>
-                <button onClick={()=>setPage('ajouter')}
-                  style={{background:'#012d1d',color:'white',border:'none',borderRadius:'20px',padding:'10px 20px',fontWeight:'bold',cursor:'pointer',fontSize:'14px'}}>
-                  ➕ Publier
-                </button>
-                <button onClick={()=>setPage('chat')}
-                  style={{background:'transparent',color:'#012d1d',border:'2px solid #012d1d',borderRadius:'20px',padding:'10px 20px',fontWeight:'bold',cursor:'pointer',fontSize:'14px'}}>
-                  💬 Messages
-                </button>
+              <div style={{display:'flex',gap:'8px',paddingBottom:'4px',flexWrap:'wrap'}}>
+                <button onClick={()=>setPage('ajouter')} style={{background:'#012d1d',color:'white',border:'none',borderRadius:'20px',padding:'10px 20px',fontWeight:'bold',cursor:'pointer',fontSize:'14px'}}>➕ Publier</button>
+                <button onClick={()=>setPage('gestion-produits')} style={{background:'transparent',color:'#012d1d',border:'2px solid #012d1d',borderRadius:'20px',padding:'10px 20px',fontWeight:'bold',cursor:'pointer',fontSize:'14px'}}>📋 Mes produits</button>
               </div>
             </div>
             <h2 style={{fontWeight:'900',color:'#012d1d',fontSize:'22px',margin:'0 0 4px'}}>{utilisateur?.nom||'Mon Profil'}</h2>
@@ -489,7 +609,6 @@ export default function App() {
                 <span key={b} style={{background:'#f0faf3',color:'#012d1d',padding:'6px 14px',borderRadius:'50px',fontSize:'12px',fontWeight:'bold',border:'1px solid #cdebc4'}}>{b}</span>
               ))}
             </div>
-            {/* Stats réelles */}
             <div style={{borderTop:'1px solid #e4e2dd',paddingTop:'16px',display:'flex',gap:'24px',flexWrap:'wrap'}}>
               {[
                 {v:statsProducteur.produits.toString(),l:'Produits publiés'},
@@ -497,22 +616,18 @@ export default function App() {
                 {v:`⭐ ${statsProducteur.note.toFixed(1)}`,l:'Note moyenne'},
                 {v:statsProducteur.clients.toString(),l:'Clients satisfaits'},
               ].map((s,i)=>(
-                <div key={i}>
-                  <p style={{fontWeight:'900',color:'#012d1d',fontSize:'18px',margin:0}}>{s.v}</p>
-                  <p style={{fontSize:'12px',color:'#717973',margin:'2px 0 0',textDecoration:'underline dotted'}}>{s.l}</p>
-                </div>
+                <div key={i}><p style={{fontWeight:'900',color:'#012d1d',fontSize:'18px',margin:0}}>{s.v}</p><p style={{fontSize:'12px',color:'#717973',margin:'2px 0 0'}}>{s.l}</p></div>
               ))}
             </div>
           </div>
         </div>
 
-        {/* Actions rapides */}
         <div style={{background:'white',borderRadius:'12px',padding:'20px',marginBottom:'12px',boxShadow:'0 2px 8px rgba(0,0,0,0.06)'}}>
           <h3 style={{fontWeight:'800',color:'#012d1d',fontSize:'16px',margin:'0 0 16px'}}>Actions rapides</h3>
           <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:'12px'}}>
             {[
-              {icon:'🌾',title:'Mes produits',sub:'Voir le marketplace',action:()=>setPage('marketplace')},
-              {icon:'📦',title:'Commandes',sub:'Suivre les livraisons',action:()=>setPage('livraison')},
+              {icon:'🌾',title:'Marketplace',sub:'Voir tous les produits',action:()=>setPage('marketplace')},
+              {icon:'📦',title:'Commandes reçues',sub:'Gérer les livraisons',action:()=>setPage('livraison')},
               {icon:'💬',title:'Messages',sub:'Parler aux acheteurs',action:()=>setPage('chat')},
               {icon:'🤖',title:'AgrinovaBot',sub:'Conseils agricoles IA',action:()=>setPage('bot')},
             ].map((item,i)=>(
@@ -521,22 +636,18 @@ export default function App() {
                 onMouseEnter={e=>{e.currentTarget.style.background='#f0faf3';e.currentTarget.style.borderColor='#cdebc4'}}
                 onMouseLeave={e=>{e.currentTarget.style.background='#f9f8f6';e.currentTarget.style.borderColor='#e4e2dd'}}>
                 <span style={{fontSize:'28px'}}>{item.icon}</span>
-                <div>
-                  <p style={{fontWeight:'800',color:'#012d1d',fontSize:'14px',margin:0}}>{item.title}</p>
-                  <p style={{color:'#717973',fontSize:'12px',margin:0}}>{item.sub}</p>
-                </div>
+                <div><p style={{fontWeight:'800',color:'#012d1d',fontSize:'14px',margin:0}}>{item.title}</p><p style={{color:'#717973',fontSize:'12px',margin:0}}>{item.sub}</p></div>
               </button>
             ))}
           </div>
         </div>
 
-        {/* Dashboard avec vrais chiffres */}
         <div style={{background:'white',borderRadius:'12px',padding:'20px',marginBottom:'12px',boxShadow:'0 2px 8px rgba(0,0,0,0.06)'}}>
           <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:'16px'}}>
             <h3 style={{fontWeight:'800',color:'#012d1d',fontSize:'16px',margin:0}}>📊 Tableau de bord</h3>
             <span style={{fontSize:'12px',color:'#717973'}}>Données réelles</span>
           </div>
-          <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:'12px',marginBottom:'16px'}}>
+          <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:'12px'}}>
             {[
               {v:statsProducteur.revenus>0?statsProducteur.revenus.toLocaleString():'0',u:'FCFA',l:'Revenus totaux',bg:'#f0faf3',c:'#012d1d'},
               {v:statsProducteur.commandes.toString(),u:'cmd',l:'Commandes reçues',bg:'#f0faf3',c:'#2d6a4f'},
@@ -551,15 +662,140 @@ export default function App() {
           </div>
         </div>
 
-        {/* Déconnexion */}
         <div style={{padding:'0 0 16px'}}>
-          <button onClick={seDeconnecter}
-            style={{width:'100%',padding:'14px',background:'white',color:'#c0392b',border:'1px solid #fde8e8',borderRadius:'12px',cursor:'pointer',fontWeight:'bold',fontSize:'14px',boxShadow:'0 2px 8px rgba(0,0,0,0.04)'}}>
+          <button onClick={seDeconnecter} style={{width:'100%',padding:'14px',background:'white',color:'#c0392b',border:'1px solid #fde8e8',borderRadius:'12px',cursor:'pointer',fontWeight:'bold',fontSize:'14px',boxShadow:'0 2px 8px rgba(0,0,0,0.04)'}}>
             🚪 Se déconnecter
           </button>
         </div>
       </div>
       <Nav actif="producteur"/>
+    </div>
+  );
+
+  // ── GESTION PRODUITS ──────────────────────────────────────
+  if (page==='gestion-produits') return (
+    <div style={{minHeight:'100vh',background:'#f3f2ef',paddingBottom:'100px'}}>
+      <Toast/>
+      <div style={{background:'white',position:'sticky',top:0,zIndex:40,boxShadow:'0 2px 4px rgba(0,0,0,0.08)'}}>
+        <div style={{display:'flex',alignItems:'center',gap:'12px',padding:'16px 24px'}}>
+          <button onClick={()=>setPage('producteur')} style={{background:'none',border:'none',cursor:'pointer',fontSize:'24px'}}>←</button>
+          <h1 style={{color:'#012d1d',fontWeight:'900',fontSize:'18px',margin:0}}>📋 Mes produits</h1>
+          <button onClick={()=>setPage('ajouter')} style={{marginLeft:'auto',background:'#012d1d',color:'white',border:'none',borderRadius:'12px',padding:'8px 16px',cursor:'pointer',fontWeight:'bold',fontSize:'13px'}}>➕ Ajouter</button>
+        </div>
+      </div>
+      <div style={{maxWidth:'900px',margin:'0 auto',padding:'24px'}}>
+        {mesProduits.length===0?(
+          <div style={{textAlign:'center',padding:'60px',background:'white',borderRadius:'24px',boxShadow:'0 2px 8px rgba(0,0,0,0.06)'}}>
+            <p style={{fontSize:'48px',marginBottom:'16px'}}>🌿</p>
+            <h3 style={{color:'#012d1d',marginBottom:'8px'}}>Aucun produit publié</h3>
+            <p style={{color:'#717973',marginBottom:'24px'}}>Publiez votre premier produit sur le marketplace</p>
+            <button onClick={()=>setPage('ajouter')} style={{background:'#012d1d',color:'white',border:'none',borderRadius:'14px',padding:'14px 28px',fontWeight:'bold',cursor:'pointer',fontSize:'16px'}}>➕ Publier un produit</button>
+          </div>
+        ):(
+          <div style={{display:'flex',flexDirection:'column',gap:'12px'}}>
+            {mesProduits.map((p:any)=>(
+              <div key={p.id} style={{background:'white',borderRadius:'20px',padding:'20px',display:'flex',gap:'16px',alignItems:'center',boxShadow:'0 2px 8px rgba(0,0,0,0.06)'}}>
+                <div style={{width:'70px',height:'70px',borderRadius:'14px',overflow:'hidden',background:'#f0eee9',flexShrink:0,display:'flex',alignItems:'center',justifyContent:'center',fontSize:'32px'}}>
+                  {p.photo?<img src={p.photo} alt="" style={{width:'100%',height:'100%',objectFit:'cover'}}/>:'🌿'}
+                </div>
+                <div style={{flex:1,minWidth:0}}>
+                  <p style={{fontWeight:'900',color:'#012d1d',fontSize:'16px',margin:'0 0 2px'}}>{p.nom}</p>
+                  <p style={{color:'#717973',fontSize:'13px',margin:'0 0 6px'}}>{p.prix?.toLocaleString()} FCFA/kg • {p.localisation}</p>
+                  <div style={{display:'flex',gap:'8px',alignItems:'center'}}>
+                    <span style={{background:p.est_disponible?'#f0faf3':'#fde8e8',color:p.est_disponible?'#2d6a4f':'#c0392b',padding:'3px 10px',borderRadius:'50px',fontSize:'11px',fontWeight:'bold'}}>
+                      {p.est_disponible?'✅ Actif':'❌ Inactif'}
+                    </span>
+                    <span style={{color:'#717973',fontSize:'12px'}}>Stock: {p.quantite_disponible} kg</span>
+                  </div>
+                </div>
+                <div style={{display:'flex',flexDirection:'column',gap:'6px',flexShrink:0}}>
+                  <button onClick={async()=>{
+                    if(confirm(`Supprimer "${p.nom}" ?`)){
+                      try{
+                        await api(`/produits/${p.id}`,'DELETE');
+                        showToast(`🗑️ "${p.nom}" supprimé`);
+                        chargerStatsProducteur();
+                      }catch{showToast('❌ Erreur suppression');}
+                    }
+                  }} style={{padding:'6px 12px',background:'#fde8e8',color:'#c0392b',border:'none',borderRadius:'8px',cursor:'pointer',fontWeight:'bold',fontSize:'12px'}}>
+                    🗑️ Supprimer
+                  </button>
+                  <button onClick={()=>setPage('marketplace')} style={{padding:'6px 12px',background:'#f0eee9',color:'#012d1d',border:'none',borderRadius:'8px',cursor:'pointer',fontWeight:'bold',fontSize:'12px'}}>
+                    👁 Voir
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+      <Nav actif="producteur"/>
+    </div>
+  );
+
+  // ── MES COMMANDES ─────────────────────────────────────────
+  if (page==='mes-commandes') return (
+    <div style={{minHeight:'100vh',background:'#fbf9f4',paddingBottom:'100px'}}>
+      <Toast/>
+      <div style={{background:'white',position:'sticky',top:0,zIndex:40,boxShadow:'0 2px 12px rgba(0,0,0,0.06)'}}>
+        <div style={{display:'flex',alignItems:'center',gap:'12px',padding:'16px 24px'}}>
+          <button onClick={()=>setPage('marketplace')} style={{background:'none',border:'none',cursor:'pointer',fontSize:'24px'}}>←</button>
+          <h1 style={{color:'#012d1d',fontWeight:'900',fontSize:'18px',margin:0}}>📦 Mes commandes</h1>
+        </div>
+      </div>
+      <div style={{maxWidth:'600px',margin:'0 auto',padding:'24px'}}>
+        {chargement?(
+          <div style={{textAlign:'center',padding:'60px'}}><p style={{fontSize:'40px'}}>⏳</p><p>Chargement...</p></div>
+        ):mesCommandes.length===0?(
+          <div style={{textAlign:'center',padding:'60px',background:'white',borderRadius:'24px',boxShadow:'0 2px 8px rgba(0,0,0,0.06)'}}>
+            <p style={{fontSize:'48px',marginBottom:'16px'}}>📦</p>
+            <h3 style={{color:'#012d1d',marginBottom:'8px'}}>Aucune commande</h3>
+            <p style={{color:'#717973',marginBottom:'24px'}}>Vos commandes apparaîtront ici</p>
+            <button onClick={()=>setPage('marketplace')} style={{background:'#012d1d',color:'white',border:'none',borderRadius:'14px',padding:'14px 28px',fontWeight:'bold',cursor:'pointer',fontSize:'16px'}}>🛒 Aller au marché</button>
+          </div>
+        ):(
+          <div style={{display:'flex',flexDirection:'column',gap:'12px'}}>
+            {mesCommandes.map((c:any,i:number)=>(
+              <div key={c.id||i} style={{background:'white',borderRadius:'20px',padding:'20px',boxShadow:'0 2px 8px rgba(0,0,0,0.06)'}}>
+                <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start',marginBottom:'12px'}}>
+                  <div>
+                    <p style={{fontWeight:'900',color:'#012d1d',fontSize:'16px',margin:'0 0 4px'}}>Commande #{c.id}</p>
+                    <p style={{color:'#717973',fontSize:'13px',margin:0}}>{new Date(c.date_commande).toLocaleDateString('fr')}</p>
+                  </div>
+                  <span style={{
+                    padding:'4px 12px',borderRadius:'50px',fontSize:'12px',fontWeight:'bold',
+                    background:c.statut==='livree'?'#f0faf3':c.statut==='expediee'?'#fef9c3':c.statut==='confirmee'?'#e8f4fd':'#f0eee9',
+                    color:c.statut==='livree'?'#2d6a4f':c.statut==='expediee'?'#854d0e':c.statut==='confirmee'?'#1a56db':'#717973'
+                  }}>
+                    {c.statut==='livree'?'✅ Livré':c.statut==='expediee'?'🚚 Expédié':c.statut==='confirmee'?'✓ Confirmé':'⏳ En attente'}
+                  </span>
+                </div>
+                <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',paddingTop:'12px',borderTop:'1px solid #f0eee9'}}>
+                  <div>
+                    <p style={{fontSize:'12px',color:'#717973',margin:'0 0 2px'}}>Quantité</p>
+                    <p style={{fontWeight:'bold',color:'#012d1d',margin:0}}>{c.quantite} kg</p>
+                  </div>
+                  <div>
+                    <p style={{fontSize:'12px',color:'#717973',margin:'0 0 2px'}}>Paiement</p>
+                    <p style={{fontWeight:'bold',color:'#012d1d',margin:0}}>{c.methode_paiement||'Wave'}</p>
+                  </div>
+                  <div style={{textAlign:'right'}}>
+                    <p style={{fontSize:'12px',color:'#717973',margin:'0 0 2px'}}>Total</p>
+                    <p style={{fontWeight:'900',color:'#012d1d',fontSize:'18px',margin:0}}>{c.montant_total?.toLocaleString()} FCFA</p>
+                  </div>
+                </div>
+                {c.statut==='livree'&&(
+                  <button onClick={()=>setPage('notation')}
+                    style={{width:'100%',marginTop:'12px',padding:'12px',background:'#FFA000',color:'#012d1d',border:'none',borderRadius:'12px',fontWeight:'bold',cursor:'pointer',fontSize:'14px'}}>
+                    ⭐ Laisser un avis
+                  </button>
+                )}
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+      <Nav actif="profil"/>
     </div>
   );
 
@@ -581,9 +817,10 @@ export default function App() {
               <div style={{width:'96px',height:'96px',borderRadius:'50%',border:'4px solid white',background:'linear-gradient(135deg,#012d1d,#1b4332)',display:'flex',alignItems:'center',justifyContent:'center',color:'white',fontWeight:'bold',fontSize:'36px'}}>
                 {utilisateur?.nom?.[0]?.toUpperCase()||'?'}
               </div>
-              <div style={{display:'flex',gap:'8px'}}>
-                <button onClick={()=>setPage('chat')} style={{background:'#012d1d',color:'white',border:'none',borderRadius:'20px',padding:'10px 20px',fontWeight:'bold',cursor:'pointer',fontSize:'14px'}}>💬 Messages</button>
-                <button onClick={seDeconnecter} style={{background:'transparent',color:'#c0392b',border:'1px solid #fde8e8',borderRadius:'20px',padding:'10px 20px',fontWeight:'bold',cursor:'pointer',fontSize:'14px'}}>Déconnexion</button>
+              <div style={{display:'flex',gap:'8px',flexWrap:'wrap'}}>
+                <button onClick={()=>setPage('mes-commandes')} style={{background:'#012d1d',color:'white',border:'none',borderRadius:'20px',padding:'10px 20px',fontWeight:'bold',cursor:'pointer',fontSize:'14px'}}>📦 Mes commandes</button>
+                <button onClick={()=>setPage('chat')} style={{background:'transparent',color:'#012d1d',border:'2px solid #012d1d',borderRadius:'20px',padding:'10px 20px',fontWeight:'bold',cursor:'pointer',fontSize:'14px'}}>💬 Messages</button>
+                <button onClick={seDeconnecter} style={{background:'transparent',color:'#c0392b',border:'1px solid #fde8e8',borderRadius:'20px',padding:'10px 16px',fontWeight:'bold',cursor:'pointer',fontSize:'13px'}}>Déco</button>
               </div>
             </div>
             {utilisateur?(
@@ -591,12 +828,9 @@ export default function App() {
                 <h2 style={{fontWeight:'900',color:'#012d1d',fontSize:'22px',margin:'0 0 4px'}}>{utilisateur.nom}</h2>
                 <p style={{color:'#414844',fontSize:'15px',margin:'0 0 4px',fontWeight:'600'}}>🛒 Acheteur • Agrinova</p>
                 <p style={{color:'#717973',fontSize:'14px',margin:'0 0 16px'}}>📍 {utilisateur.localisation||'Sénégal'}</p>
-                <div style={{borderTop:'1px solid #e4e2dd',paddingTop:'16px',display:'flex',gap:'24px'}}>
+                <div style={{borderTop:'1px solid #e4e2dd',paddingTop:'16px',display:'flex',gap:'24px',flexWrap:'wrap'}}>
                   {[{v:'0',l:'Commandes'},{v:'⭐ 0.0',l:'Satisfaction'},{v:'2024',l:'Membre depuis'}].map((s,i)=>(
-                    <div key={i}>
-                      <p style={{fontWeight:'900',color:'#012d1d',fontSize:'18px',margin:0}}>{s.v}</p>
-                      <p style={{fontSize:'12px',color:'#717973',margin:'2px 0 0'}}>{s.l}</p>
-                    </div>
+                    <div key={i}><p style={{fontWeight:'900',color:'#012d1d',fontSize:'18px',margin:0}}>{s.v}</p><p style={{fontSize:'12px',color:'#717973',margin:'2px 0 0'}}>{s.l}</p></div>
                   ))}
                 </div>
               </>
@@ -609,6 +843,28 @@ export default function App() {
             )}
           </div>
         </div>
+
+        {utilisateur&&(
+          <div style={{background:'white',borderRadius:'12px',padding:'20px',boxShadow:'0 2px 8px rgba(0,0,0,0.06)'}}>
+            <h3 style={{fontWeight:'800',color:'#012d1d',fontSize:'16px',margin:'0 0 16px'}}>Accès rapide</h3>
+            <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:'12px'}}>
+              {[
+                {icon:'📦',title:'Mes commandes',sub:'Suivre mes achats',action:()=>setPage('mes-commandes')},
+                {icon:'🛒',title:'Marketplace',sub:'Acheter des produits',action:()=>setPage('marketplace')},
+                {icon:'💬',title:'Messages',sub:'Contacter un vendeur',action:()=>setPage('chat')},
+                {icon:'🤖',title:'AgrinovaBot',sub:'Conseils agricoles',action:()=>setPage('bot')},
+              ].map((item,i)=>(
+                <button key={i} onClick={item.action}
+                  style={{background:'#f9f8f6',borderRadius:'12px',padding:'16px',display:'flex',alignItems:'center',gap:'12px',border:'1px solid #e4e2dd',cursor:'pointer',textAlign:'left'}}
+                  onMouseEnter={e=>{e.currentTarget.style.background='#f0faf3'}}
+                  onMouseLeave={e=>{e.currentTarget.style.background='#f9f8f6'}}>
+                  <span style={{fontSize:'28px'}}>{item.icon}</span>
+                  <div><p style={{fontWeight:'800',color:'#012d1d',fontSize:'14px',margin:0}}>{item.title}</p><p style={{color:'#717973',fontSize:'12px',margin:0}}>{item.sub}</p></div>
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
       </div>
       <Nav actif="profil"/>
     </div>
@@ -680,127 +936,178 @@ export default function App() {
     </div>
   );
 
-  // ── BOT ───────────────────────────────────────────────────
+  // ── BOT (FONCTIONNEL) ─────────────────────────────────────
   if (page==='bot') return (
     <div style={{height:'100vh',background:'linear-gradient(180deg,#012d1d 0%,#1b4332 30%,#fbf9f4 100%)',display:'flex',flexDirection:'column'}}>
       <div style={{padding:'20px 24px',display:'flex',alignItems:'center',gap:'12px',flexShrink:0}}>
         <button onClick={()=>setPage('marketplace')} style={{background:'rgba(255,255,255,0.15)',border:'none',cursor:'pointer',fontSize:'20px',color:'white',width:'40px',height:'40px',borderRadius:'50%',display:'flex',alignItems:'center',justifyContent:'center'}}>←</button>
         <div style={{flex:1,textAlign:'center'}}>
           <p style={{color:'white',fontWeight:'900',fontSize:'18px',margin:0}}>🤖 AgrinovaBot</p>
-          <p style={{color:'rgba(255,255,255,0.6)',fontSize:'12px',margin:0}}>Votre assistant agricole IA</p>
+          <p style={{color:'rgba(255,255,255,0.6)',fontSize:'12px',margin:0}}>{utilisateur?`Bonjour ${utilisateur.nom} !`:'Votre assistant agricole IA'}</p>
         </div>
         <div style={{width:'40px',height:'40px',borderRadius:'50%',background:'rgba(255,255,255,0.1)',display:'flex',alignItems:'center',justifyContent:'center',fontSize:'20px'}}>🌾</div>
       </div>
-      <div style={{flex:1,overflowY:'auto',padding:'0 20px 20px',display:'flex',flexDirection:'column',gap:'16px'}}>
-        <div style={{textAlign:'center',padding:'20px 0'}}>
-          <div style={{width:'80px',height:'80px',borderRadius:'50%',background:'rgba(255,255,255,0.15)',display:'flex',alignItems:'center',justifyContent:'center',fontSize:'40px',margin:'0 auto 12px'}}>🤖</div>
-          <p style={{color:'white',fontWeight:'700',fontSize:'16px',margin:'0 0 4px'}}>AgrinovaBot</p>
-          <p style={{color:'rgba(255,255,255,0.6)',fontSize:'13px',margin:0}}>{utilisateur?`Bonjour ${utilisateur.nom} !`:"Comment puis-je vous aider ?"}</p>
+
+      <div style={{flex:1,overflowY:'auto',padding:'0 20px 20px',display:'flex',flexDirection:'column',gap:'12px'}}>
+        <div style={{textAlign:'center',padding:'16px 0'}}>
+          <div style={{width:'72px',height:'72px',borderRadius:'50%',background:'rgba(255,255,255,0.15)',display:'flex',alignItems:'center',justifyContent:'center',fontSize:'36px',margin:'0 auto 8px'}}>🤖</div>
+          <p style={{color:'white',fontWeight:'700',fontSize:'15px',margin:0}}>AgrinovaBot</p>
         </div>
-        {[
-          {t:"Bonjour ! Je suis AgrinovaBot 🌱 Je peux vous aider sur les cultures, les prix du marché, la météo et bien plus."},
-          {t:"💡 Conseil du jour : Les tomates ont besoin de 6-8 litres d'eau par plante. Avec la chaleur actuelle, pensez à irriguer tôt le matin !"},
-        ].map((m,i)=>(
-          <div key={i} style={{display:'flex',gap:'10px',alignItems:'flex-end'}}>
-            <div style={{width:'32px',height:'32px',borderRadius:'50%',background:'#cdebc4',display:'flex',alignItems:'center',justifyContent:'center',fontSize:'16px',flexShrink:0}}>🤖</div>
-            <div style={{maxWidth:'80%',background:'white',padding:'14px 18px',borderRadius:'20px 20px 20px 4px',boxShadow:'0 4px 16px rgba(0,0,0,0.1)',fontSize:'14px',lineHeight:'1.6',color:'#1b1c19'}}>{m.t}</div>
+        {botMessages.map((m,i)=>(
+          <div key={i} style={{display:'flex',justifyContent:m.bot?'flex-start':'flex-end',gap:'8px',alignItems:'flex-end'}}>
+            {m.bot&&<div style={{width:'28px',height:'28px',borderRadius:'50%',background:'#cdebc4',display:'flex',alignItems:'center',justifyContent:'center',fontSize:'14px',flexShrink:0}}>🤖</div>}
+            <div style={{maxWidth:'80%',background:m.bot?'white':'#012d1d',padding:'12px 16px',borderRadius:m.bot?'20px 20px 20px 4px':'20px 20px 4px 20px',boxShadow:'0 4px 12px rgba(0,0,0,0.1)',fontSize:'14px',lineHeight:'1.6',color:m.bot?'#1b1c19':'white',whiteSpace:'pre-line'}}>
+              {m.texte}
+            </div>
           </div>
         ))}
       </div>
+
       <div style={{background:'white',borderRadius:'32px 32px 0 0',padding:'20px',flexShrink:0}}>
         <div style={{display:'flex',gap:'8px',overflowX:'auto',marginBottom:'16px',paddingBottom:'4px'}}>
           {['💧 Irrigation','🌡️ Météo','💰 Prix marché','🐛 Maladies','📅 Calendrier'].map(s=>(
-            <button key={s} style={{whiteSpace:'nowrap',padding:'10px 18px',borderRadius:'50px',border:'2px solid #e4e2dd',background:'white',cursor:'pointer',fontSize:'13px',fontWeight:'bold',color:'#012d1d',flexShrink:0}}
-              onMouseEnter={e=>{e.currentTarget.style.background='#012d1d';e.currentTarget.style.color='white'}}
-              onMouseLeave={e=>{e.currentTarget.style.background='white';e.currentTarget.style.color='#012d1d'}}>
+            <button key={s}
+              onClick={()=>envoyerBot(s.split(' ').slice(1).join(' '))}
+              style={{whiteSpace:'nowrap',padding:'10px 18px',borderRadius:'50px',border:'2px solid #e4e2dd',background:'white',cursor:'pointer',fontSize:'13px',fontWeight:'bold',color:'#012d1d',flexShrink:0,transition:'all 0.2s'}}
+              onMouseEnter={e=>{e.currentTarget.style.background='#012d1d';e.currentTarget.style.color='white';e.currentTarget.style.borderColor='#012d1d'}}
+              onMouseLeave={e=>{e.currentTarget.style.background='white';e.currentTarget.style.color='#012d1d';e.currentTarget.style.borderColor='#e4e2dd'}}>
               {s}
             </button>
           ))}
         </div>
         <div style={{display:'flex',gap:'10px',alignItems:'center'}}>
           <div style={{flex:1,display:'flex',alignItems:'center',background:'#f0eee9',borderRadius:'24px',padding:'4px 16px'}}>
-            <input placeholder="Posez votre question..." style={{flex:1,background:'none',border:'none',outline:'none',fontSize:'14px',color:'#1b1c19',padding:'12px 0'}}/>
+            <input
+              value={botInput}
+              onChange={e=>setBotInput(e.target.value)}
+              onKeyDown={e=>e.key==='Enter'&&envoyerBot()}
+              placeholder="Posez votre question agricole..."
+              style={{flex:1,background:'none',border:'none',outline:'none',fontSize:'14px',color:'#1b1c19',padding:'12px 0'}}/>
             <button style={{background:'none',border:'none',cursor:'pointer',fontSize:'20px',color:'#012d1d'}}>🎤</button>
           </div>
-          <button style={{width:'48px',height:'48px',borderRadius:'50%',background:'#012d1d',color:'white',border:'none',cursor:'pointer',fontSize:'20px',display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0}}>➤</button>
+          <button onClick={()=>envoyerBot()} style={{width:'48px',height:'48px',borderRadius:'50%',background:'#012d1d',color:'white',border:'none',cursor:'pointer',fontSize:'20px',display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0}}>➤</button>
         </div>
       </div>
     </div>
   );
 
-  // ── PANIER ────────────────────────────────────────────────
+  // ── PANIER DYNAMIQUE ──────────────────────────────────────
   if (page==='panier') return (
     <div style={{minHeight:'100vh',background:'#fbf9f4',paddingBottom:'40px'}}>
       <Toast/>
       <div style={{background:'white',position:'sticky',top:0,zIndex:40,boxShadow:'0 2px 12px rgba(0,0,0,0.06)'}}>
         <div style={{display:'flex',alignItems:'center',gap:'12px',padding:'16px 24px'}}>
           <button onClick={()=>setPage('marketplace')} style={{background:'none',border:'none',cursor:'pointer',fontSize:'24px'}}>←</button>
-          <h1 style={{color:'#012d1d',fontWeight:'900',fontSize:'20px',margin:0}}>🛒 Mon Panier</h1>
+          <h1 style={{color:'#012d1d',fontWeight:'900',fontSize:'20px',margin:0}}>🛒 Mon Panier ({panierItems.reduce((s:number,i:any)=>s+i.qte,0)})</h1>
         </div>
       </div>
-      <div style={{maxWidth:'600px',margin:'0 auto',padding:'24px'}}>
-        <div style={{background:'white',borderRadius:'24px',padding:'20px',marginBottom:'16px',display:'flex',gap:'16px',alignItems:'center',boxShadow:'0 2px 12px rgba(0,0,0,0.06)'}}>
-          <div style={{width:'80px',height:'80px',borderRadius:'16px',background:'linear-gradient(135deg,#d8f3dc,#a8d5b5)',display:'flex',alignItems:'center',justifyContent:'center',fontSize:'40px',flexShrink:0}}>🍅</div>
-          <div style={{flex:1}}>
-            <h3 style={{fontWeight:'900',color:'#012d1d',fontSize:'16px',margin:'0 0 4px'}}>Tomates de Thiès</h3>
-            <p style={{color:'#717973',fontSize:'13px',margin:'0 0 8px'}}>Moussa Diop • Thiès</p>
-            <div style={{display:'flex',alignItems:'center',gap:'12px'}}>
-              <div style={{display:'flex',alignItems:'center',gap:'8px',background:'#f0eee9',borderRadius:'12px',padding:'6px 14px'}}>
-                <button style={{background:'none',border:'none',cursor:'pointer',fontWeight:'bold',fontSize:'20px',color:'#012d1d',lineHeight:1}}>−</button>
-                <span style={{fontWeight:'bold',color:'#012d1d',minWidth:'20px',textAlign:'center'}}>10</span>
-                <button style={{background:'none',border:'none',cursor:'pointer',fontWeight:'bold',fontSize:'20px',color:'#012d1d',lineHeight:1}}>+</button>
+      {panierItems.length===0?(
+        <div style={{textAlign:'center',padding:'80px 24px'}}>
+          <p style={{fontSize:'64px',marginBottom:'16px'}}>🛒</p>
+          <h3 style={{color:'#012d1d',marginBottom:'8px'}}>Panier vide</h3>
+          <p style={{color:'#717973',marginBottom:'24px'}}>Ajoutez des produits depuis le marketplace</p>
+          <button onClick={()=>setPage('marketplace')} style={{background:'#012d1d',color:'white',border:'none',borderRadius:'14px',padding:'14px 28px',fontWeight:'bold',cursor:'pointer',fontSize:'16px'}}>🛒 Aller au marché</button>
+        </div>
+      ):(
+        <div style={{maxWidth:'600px',margin:'0 auto',padding:'24px'}}>
+          {/* Produits dans le panier */}
+          <div style={{background:'white',borderRadius:'24px',padding:'20px',marginBottom:'16px',boxShadow:'0 2px 12px rgba(0,0,0,0.06)'}}>
+            <h3 style={{fontWeight:'900',color:'#012d1d',fontSize:'16px',margin:'0 0 16px'}}>🌾 Produits</h3>
+            {panierItems.map((item:any)=>(
+              <div key={item.id} style={{display:'flex',gap:'12px',alignItems:'center',padding:'12px 0',borderBottom:'1px solid #f0eee9'}}>
+                <div style={{width:'60px',height:'60px',borderRadius:'12px',overflow:'hidden',background:'linear-gradient(135deg,#d8f3dc,#a8d5b5)',flexShrink:0,display:'flex',alignItems:'center',justifyContent:'center',fontSize:'28px'}}>
+                  {item.img?<img src={item.img} alt="" style={{width:'100%',height:'100%',objectFit:'cover'}}/>:'🌿'}
+                </div>
+                <div style={{flex:1,minWidth:0}}>
+                  <p style={{fontWeight:'800',color:'#012d1d',fontSize:'14px',margin:'0 0 4px'}}>{item.nom}</p>
+                  <p style={{color:'#717973',fontSize:'12px',margin:0}}>{item.prix?.toLocaleString()} FCFA/kg</p>
+                </div>
+                <div style={{display:'flex',alignItems:'center',gap:'8px',background:'#f0eee9',borderRadius:'12px',padding:'4px 10px'}}>
+                  <button onClick={()=>{
+                    if(item.qte===1){setPanierItems(prev=>prev.filter((i:any)=>i.id!==item.id));}
+                    else{setPanierItems(prev=>prev.map((i:any)=>i.id===item.id?{...i,qte:i.qte-1}:i));}
+                  }} style={{background:'none',border:'none',cursor:'pointer',fontWeight:'bold',fontSize:'18px',color:'#012d1d',lineHeight:1}}>−</button>
+                  <span style={{fontWeight:'bold',color:'#012d1d',minWidth:'20px',textAlign:'center'}}>{item.qte}</span>
+                  <button onClick={()=>setPanierItems(prev=>prev.map((i:any)=>i.id===item.id?{...i,qte:i.qte+1}:i))}
+                    style={{background:'none',border:'none',cursor:'pointer',fontWeight:'bold',fontSize:'18px',color:'#012d1d',lineHeight:1}}>+</button>
+                </div>
+                <p style={{fontWeight:'900',color:'#012d1d',fontSize:'15px',margin:0,minWidth:'80px',textAlign:'right'}}>
+                  {(item.prix*item.qte).toLocaleString()} F
+                </p>
               </div>
-              <span style={{fontWeight:'900',color:'#012d1d',fontSize:'18px'}}>3 500 FCFA</span>
+            ))}
+          </div>
+
+          {/* Adresse */}
+          <div style={{background:'white',borderRadius:'24px',padding:'20px',marginBottom:'16px',boxShadow:'0 2px 12px rgba(0,0,0,0.06)'}}>
+            <h3 style={{fontWeight:'900',color:'#012d1d',fontSize:'16px',margin:'0 0 16px'}}>📍 Adresse de livraison</h3>
+            <input
+              value={adresseLivraison}
+              onChange={e=>setAdresseLivraison(e.target.value)}
+              placeholder="Ex: Dakar Plateau, Rue de Thiong..."
+              style={{width:'100%',padding:'14px 16px',background:'#f0eee9',border:'none',borderRadius:'14px',fontSize:'14px',outline:'none',boxSizing:'border-box'}}/>
+          </div>
+
+          {/* Récapitulatif */}
+          <div style={{background:'white',borderRadius:'24px',padding:'20px',marginBottom:'24px',boxShadow:'0 2px 12px rgba(0,0,0,0.06)'}}>
+            <h3 style={{fontWeight:'900',color:'#012d1d',fontSize:'16px',margin:'0 0 16px'}}>📋 Récapitulatif</h3>
+            {[
+              {l:'Sous-total',v:`${totalPanier.toLocaleString()} FCFA`},
+              {l:'Livraison',v:`${fraisLivraison.toLocaleString()} FCFA`},
+              {l:'Commission Agrinova (3%)',v:`${commission.toLocaleString()} FCFA`},
+            ].map(r=>(
+              <div key={r.l} style={{display:'flex',justifyContent:'space-between',marginBottom:'12px'}}>
+                <span style={{color:'#717973',fontSize:'14px'}}>{r.l}</span>
+                <span style={{fontWeight:'bold',color:'#012d1d',fontSize:'14px'}}>{r.v}</span>
+              </div>
+            ))}
+            <div style={{borderTop:'2px solid #f0eee9',paddingTop:'12px',display:'flex',justifyContent:'space-between'}}>
+              <span style={{fontWeight:'900',color:'#012d1d',fontSize:'18px'}}>TOTAL</span>
+              <span style={{fontWeight:'900',color:'#012d1d',fontSize:'24px'}}>{totalFinal.toLocaleString()} FCFA</span>
             </div>
           </div>
-        </div>
-        <div style={{background:'white',borderRadius:'24px',padding:'20px',marginBottom:'16px',boxShadow:'0 2px 12px rgba(0,0,0,0.06)'}}>
-          <h3 style={{fontWeight:'900',color:'#012d1d',fontSize:'16px',margin:'0 0 16px'}}>📍 Adresse de livraison</h3>
-          <input placeholder="Ex: Dakar Plateau, Rue de Thiong..." style={{width:'100%',padding:'14px 16px',background:'#f0eee9',border:'none',borderRadius:'14px',fontSize:'14px',outline:'none',boxSizing:'border-box'}}/>
-        </div>
-        <div style={{background:'white',borderRadius:'24px',padding:'20px',marginBottom:'24px',boxShadow:'0 2px 12px rgba(0,0,0,0.06)'}}>
-          <h3 style={{fontWeight:'900',color:'#012d1d',fontSize:'16px',margin:'0 0 16px'}}>📋 Récapitulatif</h3>
-          {[{l:'Sous-total',v:'3 500 FCFA'},{l:'Livraison',v:'500 FCFA'},{l:'Commission Agrinova (3%)',v:'105 FCFA'}].map(r=>(
-            <div key={r.l} style={{display:'flex',justifyContent:'space-between',marginBottom:'12px'}}>
-              <span style={{color:'#717973',fontSize:'14px'}}>{r.l}</span>
-              <span style={{fontWeight:'bold',color:'#012d1d',fontSize:'14px'}}>{r.v}</span>
-            </div>
-          ))}
-          <div style={{borderTop:'2px solid #f0eee9',paddingTop:'12px',display:'flex',justifyContent:'space-between'}}>
-            <span style={{fontWeight:'900',color:'#012d1d',fontSize:'18px'}}>TOTAL</span>
-            <span style={{fontWeight:'900',color:'#012d1d',fontSize:'24px'}}>4 105 FCFA</span>
+
+          {/* Paiement */}
+          <h3 style={{fontWeight:'900',color:'#012d1d',fontSize:'16px',marginBottom:'16px'}}>💳 Choisir le paiement</h3>
+          <div style={{display:'flex',flexDirection:'column',gap:'12px'}}>
+            {[
+              {icon:'📱',nom:'Wave',couleur:'#1a56db',sub:'Paiement instantané',recommande:true},
+              {icon:'🟠',nom:'Orange Money',couleur:'#ff6b00',sub:'Disponible 24h/24',recommande:false},
+              {icon:'🤝',nom:'Paiement à la livraison',couleur:'#012d1d',sub:'Payez en recevant',recommande:false},
+            ].map((p,i)=>(
+              <button key={p.nom}
+                onClick={async()=>{
+                  if(!adresseLivraison.trim()){showToast('⚠️ Remplis ton adresse de livraison !');return;}
+                  const num=`AG-${Math.floor(Math.random()*90000+10000)}`;
+                  showToast(`⏳ Traitement ${p.nom}...`);
+                  try{
+                    for(const item of panierItems){
+                      await api('/commandes','POST',{
+                        produit_id:item.id, quantite:item.qte,
+                        adresse_livraison:adresseLivraison, methode_paiement:p.nom.toLowerCase().replace(' ','_')
+                      });
+                    }
+                  }catch(e){console.log('Commande en mode démo');}
+                  await new Promise(r=>setTimeout(r,2000));
+                  showToast(`✅ Commande confirmée ! N° ${num}`);
+                  setPanierItems([]);
+                  await new Promise(r=>setTimeout(r,1500));
+                  setPage('livraison');
+                }}
+                style={{padding:'16px 20px',borderRadius:'16px',border:`2px solid ${i===0?p.couleur:'#e4e2dd'}`,background:i===0?`${p.couleur}15`:'white',cursor:'pointer',display:'flex',alignItems:'center',gap:'16px',textAlign:'left',width:'100%',transition:'all 0.2s'}}
+                onMouseEnter={e=>{e.currentTarget.style.borderColor=p.couleur;e.currentTarget.style.background=`${p.couleur}15`}}
+                onMouseLeave={e=>{if(i!==0){e.currentTarget.style.borderColor='#e4e2dd';e.currentTarget.style.background='white'}}}>
+                <span style={{fontSize:'28px'}}>{p.icon}</span>
+                <div style={{flex:1}}>
+                  <p style={{fontWeight:'900',color:'#012d1d',fontSize:'16px',margin:0}}>{p.nom}</p>
+                  <p style={{color:'#717973',fontSize:'12px',margin:0}}>{p.sub}</p>
+                </div>
+                {p.recommande&&<span style={{background:p.couleur,color:'white',padding:'4px 12px',borderRadius:'50px',fontSize:'11px',fontWeight:'bold',whiteSpace:'nowrap'}}>Recommandé</span>}
+              </button>
+            ))}
           </div>
         </div>
-        <h3 style={{fontWeight:'900',color:'#012d1d',fontSize:'16px',marginBottom:'16px'}}>💳 Choisir le paiement</h3>
-        <div style={{display:'flex',flexDirection:'column',gap:'12px'}}>
-          {[
-            {icon:'📱',nom:'Wave',couleur:'#1a56db',sub:'Paiement instantané',recommande:true},
-            {icon:'🟠',nom:'Orange Money',couleur:'#ff6b00',sub:'Disponible 24h/24',recommande:false},
-            {icon:'🤝',nom:'Paiement à la livraison',couleur:'#012d1d',sub:'Payez en recevant',recommande:false},
-          ].map((p,i)=>(
-            <button key={p.nom}
-              onClick={async()=>{
-                if(!utilisateur){showToast('⚠️ Connecte-toi pour passer commande !');setPage('connexion');return;}
-                const num=`AG-${Math.floor(Math.random()*90000+10000)}`;
-                showToast(`⏳ Traitement ${p.nom}...`);
-                await new Promise(r=>setTimeout(r,2000));
-                showToast(`✅ Paiement confirmé ! N° ${num}`);
-                await new Promise(r=>setTimeout(r,1500));
-                setPage('livraison');
-              }}
-              style={{padding:'16px 20px',borderRadius:'16px',border:`2px solid ${i===0?p.couleur:'#e4e2dd'}`,background:i===0?`${p.couleur}15`:'white',cursor:'pointer',display:'flex',alignItems:'center',gap:'16px',textAlign:'left',width:'100%',transition:'all 0.2s'}}
-              onMouseEnter={e=>{e.currentTarget.style.borderColor=p.couleur;e.currentTarget.style.background=`${p.couleur}15`}}
-              onMouseLeave={e=>{if(i!==0){e.currentTarget.style.borderColor='#e4e2dd';e.currentTarget.style.background='white'}}}>
-              <span style={{fontSize:'28px'}}>{p.icon}</span>
-              <div style={{flex:1}}>
-                <p style={{fontWeight:'900',color:'#012d1d',fontSize:'16px',margin:0}}>{p.nom}</p>
-                <p style={{color:'#717973',fontSize:'12px',margin:0}}>{p.sub}</p>
-              </div>
-              {p.recommande&&<span style={{background:p.couleur,color:'white',padding:'4px 12px',borderRadius:'50px',fontSize:'11px',fontWeight:'bold',whiteSpace:'nowrap'}}>Recommandé</span>}
-            </button>
-          ))}
-        </div>
-      </div>
+      )}
     </div>
   );
 
@@ -811,10 +1118,7 @@ export default function App() {
       <div style={{background:'white',position:'sticky',top:0,zIndex:40,boxShadow:'0 2px 12px rgba(0,0,0,0.06)'}}>
         <div style={{display:'flex',alignItems:'center',gap:'12px',padding:'16px 24px'}}>
           <button onClick={()=>setPage('marketplace')} style={{background:'none',border:'none',cursor:'pointer',fontSize:'24px'}}>←</button>
-          <div>
-            <h1 style={{color:'#012d1d',fontWeight:'900',fontSize:'18px',margin:0}}>📦 Suivi de Livraison</h1>
-            <p style={{color:'#717973',fontSize:'12px',margin:0}}>Commande #AG-8821</p>
-          </div>
+          <div><h1 style={{color:'#012d1d',fontWeight:'900',fontSize:'18px',margin:0}}>📦 Suivi de Livraison</h1><p style={{color:'#717973',fontSize:'12px',margin:0}}>Commande #AG-8821</p></div>
           <div style={{marginLeft:'auto',background:'#cdebc4',color:'#012d1d',padding:'6px 14px',borderRadius:'50px',fontWeight:'bold',fontSize:'12px'}}>⏱ 14:30</div>
         </div>
       </div>
@@ -876,22 +1180,22 @@ export default function App() {
           <div style={{fontSize:'80px',marginBottom:'24px'}}>🎉</div>
           <h2 style={{color:'#012d1d',fontWeight:'900',fontSize:'28px',marginBottom:'12px'}}>Merci pour votre avis !</h2>
           <p style={{color:'#717973',fontSize:'16px',marginBottom:'40px'}}>Votre note aide la communauté Agrinova 🌾</p>
-          <button onClick={()=>setPage('marketplace')} style={{background:'#012d1d',color:'white',border:'none',borderRadius:'16px',padding:'16px 40px',fontWeight:'900',fontSize:'18px',cursor:'pointer'}}>Retour au marché →</button>
+          <button onClick={()=>{setNoteEnvoyee(false);setNoteEtoile(0);setCommentaire('');setPage('marketplace');}} style={{background:'#012d1d',color:'white',border:'none',borderRadius:'16px',padding:'16px 40px',fontWeight:'900',fontSize:'18px',cursor:'pointer'}}>Retour au marché →</button>
         </div>
       ):(
         <>
           <div style={{textAlign:'center',marginBottom:'32px'}}>
             <h1 style={{color:'white',fontWeight:'900',fontSize:'28px',margin:'0 0 8px'}}>⭐ Évaluer votre commande</h1>
-            <p style={{color:'rgba(255,255,255,0.7)',fontSize:'15px',margin:0}}>Commande #AG-8821 • Tomates de Thiès</p>
+            <p style={{color:'rgba(255,255,255,0.7)',fontSize:'15px',margin:0}}>Comment s'est passée votre expérience ?</p>
           </div>
           <div style={{background:'white',borderRadius:'32px',padding:'32px',width:'100%',maxWidth:'420px',boxShadow:'0 20px 60px rgba(0,0,0,0.15)'}}>
             <div style={{textAlign:'center',marginBottom:'24px'}}>
               <div style={{width:'80px',height:'80px',borderRadius:'50%',background:'#1b4332',display:'flex',alignItems:'center',justifyContent:'center',color:'white',fontSize:'32px',fontWeight:'bold',margin:'0 auto 12px'}}>M</div>
               <p style={{fontWeight:'900',color:'#012d1d',fontSize:'18px',margin:0}}>Moussa Diop</p>
-              <p style={{color:'#717973',fontSize:'13px',margin:0}}>Producteur • Thiès</p>
+              <p style={{color:'#717973',fontSize:'13px',margin:0}}>Producteur • Agrinova</p>
             </div>
             <div style={{textAlign:'center',marginBottom:'24px'}}>
-              <p style={{fontWeight:'bold',color:'#012d1d',fontSize:'15px',marginBottom:'16px'}}>{noteEtoile===0?'Touchez une étoile':noteEtoile===5?'Excellent ! 🎉':noteEtoile>=4?'Très bien ! 😊':'Merci 👍'}</p>
+              <p style={{fontWeight:'bold',color:'#012d1d',fontSize:'15px',marginBottom:'16px'}}>{noteEtoile===0?'Touchez une étoile pour noter':noteEtoile===5?'Excellent ! 🎉':noteEtoile>=4?'Très bien ! 😊':noteEtoile>=3?'Bien 👍':'Peut mieux faire 😐'}</p>
               <div style={{display:'flex',justifyContent:'center',gap:'8px'}}>
                 {[1,2,3,4,5].map(n=>(
                   <button key={n} onClick={()=>setNoteEtoile(n)}
@@ -904,8 +1208,11 @@ export default function App() {
             <textarea value={commentaire} onChange={e=>setCommentaire(e.target.value)}
               placeholder="Laissez un commentaire (optionnel)..."
               style={{width:'100%',padding:'14px 16px',background:'#f0eee9',border:'none',borderRadius:'16px',fontSize:'14px',outline:'none',resize:'none',height:'100px',boxSizing:'border-box',marginBottom:'20px',fontFamily:'inherit'}}/>
-            <button onClick={()=>{if(noteEtoile===0){showToast('⚠️ Choisissez une note !');return;}setNoteEnvoyee(true);}}
-              style={{width:'100%',padding:'16px',background:noteEtoile>0?'#012d1d':'#ccc',color:'white',border:'none',borderRadius:'16px',fontWeight:'900',fontSize:'18px',cursor:noteEtoile>0?'pointer':'not-allowed'}}>
+            <button onClick={async()=>{
+              if(noteEtoile===0){showToast('⚠️ Choisissez une note !');return;}
+              try{await api('/avis','POST',{commande_id:1,note:noteEtoile,commentaire});}catch{}
+              setNoteEnvoyee(true);
+            }} style={{width:'100%',padding:'16px',background:noteEtoile>0?'#012d1d':'#ccc',color:'white',border:'none',borderRadius:'16px',fontWeight:'900',fontSize:'18px',cursor:noteEtoile>0?'pointer':'not-allowed'}}>
               Envoyer mon avis ⭐
             </button>
           </div>
@@ -926,7 +1233,7 @@ export default function App() {
       </div>
       <div style={{maxWidth:'600px',margin:'0 auto',padding:'24px',display:'flex',flexDirection:'column',gap:'16px'}}>
         <div style={{background:'white',borderRadius:'24px',padding:'24px',boxShadow:'0 2px 12px rgba(0,0,0,0.06)',textAlign:'center'}}>
-          <div style={{width:'120px',height:'120px',borderRadius:'24px',background:'#f0eee9',display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',margin:'0 auto 16px',cursor:'pointer',border:'2px dashed #c1c8c2'}}>
+          <div style={{width:'120px',height:'120px',borderRadius:'24px',background:'#f0eee9',display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',margin:'0 auto 12px',cursor:'pointer',border:'2px dashed #c1c8c2'}}>
             <span style={{fontSize:'36px'}}>📷</span>
             <p style={{fontSize:'12px',color:'#717973',margin:'8px 0 0',fontWeight:'bold'}}>Ajouter photo</p>
           </div>
@@ -934,40 +1241,44 @@ export default function App() {
         </div>
         <div style={{background:'white',borderRadius:'24px',padding:'24px',boxShadow:'0 2px 12px rgba(0,0,0,0.06)',display:'flex',flexDirection:'column',gap:'16px'}}>
           {[
-            {label:'🌾 Nom du produit',placeholder:'Ex: Tomates cerises de Thiès',val:nomProduit,set:setNomProduit},
+            {label:'🌾 Nom du produit',placeholder:'Ex: Tomates cerises de Thiès',val:nomProduit,set:setNomProduit,type:'text'},
+            {label:'📝 Description',placeholder:'Ex: Récoltées ce matin, très fraîches',val:descProduit,set:setDescProduit,type:'text'},
             {label:'💰 Prix (FCFA/kg)',placeholder:'Ex: 350',val:prixProduit,set:setPrixProduit,type:'number'},
             {label:'📦 Quantité disponible (kg)',placeholder:'Ex: 50',val:qteProduit,set:setQteProduit,type:'number'},
+            {label:'📍 Localisation',placeholder:'Ex: Thiès, Sénégal',val:locProduit,set:setLocProduit,type:'text'},
           ].map(f=>(
             <div key={f.label}>
               <label style={{display:'block',fontWeight:'bold',color:'#012d1d',fontSize:'14px',marginBottom:'8px'}}>{f.label}</label>
-              <input type={f.type||'text'} value={f.val} onChange={e=>f.set(e.target.value)} placeholder={f.placeholder}
+              <input type={f.type} value={f.val} onChange={e=>f.set(e.target.value)} placeholder={f.placeholder}
                 style={{width:'100%',padding:'14px 16px',background:'#f0eee9',border:'none',borderRadius:'14px',fontSize:'14px',outline:'none',boxSizing:'border-box'}}/>
             </div>
           ))}
           <div>
             <label style={{display:'block',fontWeight:'bold',color:'#012d1d',fontSize:'14px',marginBottom:'8px'}}>🏷️ Catégorie</label>
             <div style={{display:'flex',gap:'8px',flexWrap:'wrap'}}>
-              {['🥦 Légumes','🍊 Fruits','🌾 Céréales','🥜 Légumineuses'].map((c,i)=>(
-                <button key={c} style={{padding:'10px 16px',borderRadius:'12px',border:'none',cursor:'pointer',fontWeight:'bold',fontSize:'13px',background:i===0?'#012d1d':'#f0eee9',color:i===0?'white':'#414844'}}>{c}</button>
+              {['Légumes','Fruits','Céréales','Légumineuses'].map(c=>(
+                <button key={c} onClick={()=>setCatProduit(c)}
+                  style={{padding:'10px 16px',borderRadius:'12px',border:'none',cursor:'pointer',fontWeight:'bold',fontSize:'13px',background:catProduit===c?'#012d1d':'#f0eee9',color:catProduit===c?'white':'#414844',transition:'all 0.2s'}}>
+                  {c==='Légumes'?'🥦':c==='Fruits'?'🍊':c==='Céréales'?'🌾':'🥜'} {c}
+                </button>
               ))}
             </div>
           </div>
-          <div>
-            <label style={{display:'block',fontWeight:'bold',color:'#012d1d',fontSize:'14px',marginBottom:'8px'}}>📍 Localisation</label>
-            <input placeholder="Ex: Thiès, Sénégal"
-              style={{width:'100%',padding:'14px 16px',background:'#f0eee9',border:'none',borderRadius:'14px',fontSize:'14px',outline:'none',boxSizing:'border-box'}}/>
-          </div>
         </div>
         <button onClick={async()=>{
-          if(!nomProduit||!prixProduit||!qteProduit){showToast('⚠️ Remplis tous les champs !');return;}
+          if(!nomProduit||!prixProduit||!qteProduit||!locProduit){showToast('⚠️ Remplis tous les champs obligatoires !');return;}
           setChargement(true);
           try{
-            const data=await api('/produits','POST',{nom:nomProduit,prix:parseFloat(prixProduit),quantite_disponible:parseInt(qteProduit),localisation:'Sénégal',categorie:'Légumes'});
+            const data=await api('/produits','POST',{
+              nom:nomProduit, description:descProduit,
+              prix:parseFloat(prixProduit), quantite_disponible:parseInt(qteProduit),
+              localisation:locProduit, categorie:catProduit,
+            });
             if(data.produit||data.message){
-              showToast(`✅ "${nomProduit}" publié ! 🌾`);
-              setNomProduit('');setPrixProduit('');setQteProduit('');
+              showToast(`✅ "${nomProduit}" publié sur le marketplace ! 🌾`);
+              setNomProduit('');setDescProduit('');setPrixProduit('');setQteProduit('');setLocProduit('');
               setTimeout(()=>setPage('marketplace'),2000);
-            }else{showToast('❌ '+(data.detail||'Erreur'));}
+            }else{showToast('❌ '+(data.detail||'Erreur de publication'));}
           }catch{showToast('❌ Impossible de contacter le serveur');}
           setChargement(false);
         }} style={{width:'100%',padding:'20px',background:'#012d1d',color:'white',border:'none',borderRadius:'20px',fontWeight:'900',fontSize:'18px',cursor:'pointer',boxShadow:'0 8px 30px rgba(1,45,29,0.3)'}}>
