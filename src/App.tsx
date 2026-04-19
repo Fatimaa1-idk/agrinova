@@ -25,6 +25,8 @@ export default function App() {
   );
   const [produits, setProduits] = useState<any[]>([]);
   const [chargement, setChargement] = useState(false);
+  const [categorie, setCategorie] = useState('Légumes');
+  const [recherche, setRecherche] = useState('');
   const [msgInput, setMsgInput] = useState('');
   const [messages, setMessages] = useState([
     {id:1,moi:false,texte:'Bonjour ! Vos tomates sont encore disponibles ?',heure:'09:12',lu:true},
@@ -43,10 +45,13 @@ export default function App() {
   const [formRole, setFormRole] = useState('acheteur');
   const [formLoc, setFormLoc] = useState('');
   const [formErreur, setFormErreur] = useState('');
+  const [statsProducteur, setStatsProducteur] = useState({
+    produits:0, commandes:0, note:0.0, clients:0, revenus:0
+  });
 
   const showToast = (msg: string) => {
     setToast(msg);
-    setTimeout(() => setToast(''), 3000);
+    setTimeout(()=>setToast(''),3000);
   };
 
   const chargerProduits = async () => {
@@ -54,15 +59,34 @@ export default function App() {
     try {
       const data = await api('/produits');
       if (Array.isArray(data)) setProduits(data);
-    } catch (e) {
-      console.log('Mode démo');
-    }
+    } catch(e) { console.log('Mode démo'); }
     setChargement(false);
   };
 
-  useEffect(() => {
-    if (page === 'marketplace') chargerProduits();
-  }, [page]);
+  const chargerStatsProducteur = async () => {
+    try {
+      const [mesProduits, mesCommandes, profil] = await Promise.all([
+        api('/mes-produits'),
+        api('/mes-commandes'),
+        api('/auth/moi'),
+      ]);
+      const nbProduits = Array.isArray(mesProduits) ? mesProduits.length : 0;
+      const nbCommandes = Array.isArray(mesCommandes) ? mesCommandes.length : 0;
+      const revenus = Array.isArray(mesCommandes)
+        ? mesCommandes.reduce((sum:number,c:any)=>sum+(c.montant_total||0),0) : 0;
+      const clients = Array.isArray(mesCommandes)
+        ? new Set(mesCommandes.map((c:any)=>c.acheteur_id)).size : 0;
+      setStatsProducteur({
+        produits:nbProduits, commandes:nbCommandes,
+        note:profil.note_globale||0.0, clients, revenus,
+      });
+    } catch(e) { console.log('Erreur stats'); }
+  };
+
+  useEffect(()=>{
+    if (page==='marketplace') chargerProduits();
+    if (page==='producteur'&&utilisateur) chargerStatsProducteur();
+  },[page]);
 
   const seDeconnecter = () => {
     localStorage.removeItem('agrinova_token');
@@ -74,33 +98,34 @@ export default function App() {
 
   const envoyer = () => {
     if (!msgInput.trim()) return;
-    setMessages(prev => [...prev, {
-      id: Date.now(), moi: true,
-      texte: msgInput,
-      heure: new Date().toLocaleTimeString('fr', {hour:'2-digit', minute:'2-digit'}),
-      lu: false
+    setMessages(prev=>[...prev,{
+      id:Date.now(), moi:true, texte:msgInput,
+      heure:new Date().toLocaleTimeString('fr',{hour:'2-digit',minute:'2-digit'}), lu:false
     }]);
     setMsgInput('');
-    setTimeout(() => {
-      setMessages(prev => [...prev, {
-        id: Date.now()+1, moi: false,
-        texte: '✅ Message reçu, merci ! 🌾',
-        heure: new Date().toLocaleTimeString('fr', {hour:'2-digit', minute:'2-digit'}),
-        lu: false
-      }]);
-    }, 1000);
+    setTimeout(()=>setMessages(prev=>[...prev,{
+      id:Date.now()+1, moi:false, texte:'✅ Message reçu, merci ! 🌾',
+      heure:new Date().toLocaleTimeString('fr',{hour:'2-digit',minute:'2-digit'}), lu:false
+    }]),1000);
   };
 
   const produitsDemo = [
-    {id:1,nom:'Tomates de Thiès',description:'Récoltées ce matin',prix:350,localisation:'Thiès',note_globale:4.8,quantite_disponible:50,est_disponible:true,certifie:true,img:'https://lh3.googleusercontent.com/aida-public/AB6AXuCa_08BP1sGbXOaRBboTAzvPKJt8IKcRg1raquKfJg80Tf9i6H97egNk4EKSry0u6rmi5cU14PLkBrI2ljb5JQW86hKD4Uv0YzYMq1xs2phSXpXPu0OhDW0Lv6mPMrg4kHqjI2VHmX9gU9VSSwsmVevv60GcIQir6ZOcJ4Z7MRkNsMnPCq_1Glj4yHc0r3mILBfjSSq6vGJm6u4_bvg3_zZAH10UdzL4BTzNvivbyi34yyBzvbvIlDX6I9LSvZCsMB84ovqVZBVDjX4'},
-    {id:2,nom:'Oignons de Gandiol',description:'Gros calibre, rouge',prix:600,localisation:'Saint-Louis',note_globale:4.5,quantite_disponible:30,est_disponible:true,certifie:true,img:'https://lh3.googleusercontent.com/aida-public/AB6AXuA4tAKmwbXmnjjm7HVtq4gicOyBsAxNc2-YjsKBB_ULGudF973i33yABoowF9D-Yn146hwpGphPbLHaoxLoCoPGNwIHrYVOjyVb3vLQ3F5oldAg_blgLUQ3uL2OY0014W04XAS11IcjCNh7-uUz4z9EqYh3Oog3YJGMNfN6accATpKYEf5QMs7KAqPSR9QVGkMbnCpBD5qQSjeEjDefRELL2wVCu6MLp8fuw6QFxcKxMYG6Ss8Ki_3dyiAHk8Ad5TXdr1rM5ef3NVvM'},
-    {id:3,nom:'Mangues Kent',description:'Douces & sucrées',prix:1200,localisation:'Casamance',note_globale:4.9,quantite_disponible:0,est_disponible:false,certifie:false,img:'https://lh3.googleusercontent.com/aida-public/AB6AXuAvmW6dN0Okxa63B6P-8VCknPb19_gy9OKt_5Hn1GjzrTnNwWU4LCu6sG04ylCc7ma2r92SmVbZSz1kbMBPSqX6kdOfq00FNkrYQpoWk6oO47wxIX2NWp-NJN9XNvh286o5OKK7iqb7XLkzFlJsFrbLnIMGFrSrehboMOwUPMDat7_BroQE05IJc0RwpAg-cHEH2xBmziaL09vVT9MBNBX7eVBUmvsqxePoH27cW7omZ3FqkLfSdzzV88ZwkG7FNzrqcCWdHZ9YPy9o'},
-    {id:4,nom:'Riz de la Vallée',description:'Sac de 5kg disponible',prix:500,localisation:'Richard Toll',note_globale:4.2,quantite_disponible:100,est_disponible:true,certifie:true,img:'https://lh3.googleusercontent.com/aida-public/AB6AXuA1q14-9JE_SQXuEZ2shs8EAbGHawtSYmRdinApw_cYHJoLsDVVAUPbTJ80xN97_G6eLMK8KzqvQjshjtPnvBrkuPWk6KwWY1E66ZRLIhLVEWDUGI_CnrH9GcB4wn2o_zBIpOGqWdW8hNGJHLi7XxSF-pFYIeEcmmAfO5YHKpm5EatQRA2rks7CAVbsjWEWxt7tiZ6uNK3cJjzF-clXA0bwRP31tKGRCfBVzmf1SFrNxAiLBRIl2mcGSZJEL7ZOitPqJ6w1elM7qz2M'},
+    {id:1,nom:'Tomates de Thiès',description:'Récoltées ce matin',prix:350,localisation:'Thiès',note_globale:4.8,quantite_disponible:50,est_disponible:true,certifie:true,categorie:'Légumes',img:'https://lh3.googleusercontent.com/aida-public/AB6AXuCa_08BP1sGbXOaRBboTAzvPKJt8IKcRg1raquKfJg80Tf9i6H97egNk4EKSry0u6rmi5cU14PLkBrI2ljb5JQW86hKD4Uv0YzYMq1xs2phSXpXPu0OhDW0Lv6mPMrg4kHqjI2VHmX9gU9VSSwsmVevv60GcIQir6ZOcJ4Z7MRkNsMnPCq_1Glj4yHc0r3mILBfjSSq6vGJm6u4_bvg3_zZAH10UdzL4BTzNvivbyi34yyBzvbvIlDX6I9LSvZCsMB84ovqVZBVDjX4'},
+    {id:2,nom:'Oignons de Gandiol',description:'Gros calibre, rouge',prix:600,localisation:'Saint-Louis',note_globale:4.5,quantite_disponible:30,est_disponible:true,certifie:true,categorie:'Légumes',img:'https://lh3.googleusercontent.com/aida-public/AB6AXuA4tAKmwbXmnjjm7HVtq4gicOyBsAxNc2-YjsKBB_ULGudF973i33yABoowF9D-Yn146hwpGphPbLHaoxLoCoPGNwIHrYVOjyVb3vLQ3F5oldAg_blgLUQ3uL2OY0014W04XAS11IcjCNh7-uUz4z9EqYh3Oog3YJGMNfN6accATpKYEf5QMs7KAqPSR9QVGkMbnCpBD5qQSjeEjDefRELL2wVCu6MLp8fuw6QFxcKxMYG6Ss8Ki_3dyiAHk8Ad5TXdr1rM5ef3NVvM'},
+    {id:3,nom:'Mangues Kent',description:'Douces & sucrées',prix:1200,localisation:'Casamance',note_globale:4.9,quantite_disponible:0,est_disponible:false,certifie:false,categorie:'Fruits',img:'https://lh3.googleusercontent.com/aida-public/AB6AXuAvmW6dN0Okxa63B6P-8VCknPb19_gy9OKt_5Hn1GjzrTnNwWU4LCu6sG04ylCc7ma2r92SmVbZSz1kbMBPSqX6kdOfq00FNkrYQpoWk6oO47wxIX2NWp-NJN9XNvh286o5OKK7iqb7XLkzFlJsFrbLnIMGFrSrehboMOwUPMDat7_BroQE05IJc0RwpAg-cHEH2xBmziaL09vVT9MBNBX7eVBUmvsqxePoH27cW7omZ3FqkLfSdzzV88ZwkG7FNzrqcCWdHZ9YPy9o'},
+    {id:4,nom:'Riz de la Vallée',description:'Sac de 5kg disponible',prix:500,localisation:'Richard Toll',note_globale:4.2,quantite_disponible:100,est_disponible:true,certifie:true,categorie:'Céréales',img:'https://lh3.googleusercontent.com/aida-public/AB6AXuA1q14-9JE_SQXuEZ2shs8EAbGHawtSYmRdinApw_cYHJoLsDVVAUPbTJ80xN97_G6eLMK8KzqvQjshjtPnvBrkuPWk6KwWY1E66ZRLIhLVEWDUGI_CnrH9GcB4wn2o_zBIpOGqWdW8hNGJHLi7XxSF-pFYIeEcmmAfO5YHKpm5EatQRA2rks7CAVbsjWEWxt7tiZ6uNK3cJjzF-clXA0bwRP31tKGRCfBVzmf1SFrNxAiLBRIl2mcGSZJEL7ZOitPqJ6w1elM7qz2M'},
+    {id:5,nom:'Arachides du Saloum',description:'Fraîches et croquantes',prix:450,localisation:'Kaolack',note_globale:4.6,quantite_disponible:80,est_disponible:true,certifie:true,categorie:'Légumes',img:'https://images.unsplash.com/photo-1567306226416-28f0efdc88ce?q=80&w=400'},
+    {id:6,nom:'Papayes de Casamance',description:'Mûres à point',prix:800,localisation:'Ziguinchor',note_globale:4.7,quantite_disponible:25,est_disponible:true,certifie:false,categorie:'Fruits',img:'https://images.unsplash.com/photo-1526318472351-c75fcf070305?q=80&w=400'},
   ];
 
-  const listeProduits = produits.length > 0 ? produits : produitsDemo;
+  const tousLesProduits = produits.length > 0 ? produits : produitsDemo;
+  const produitsFiltres = tousLesProduits.filter(p=>{
+    const matchCat = categorie==='Livraison' || !p.categorie || p.categorie===categorie || categorie==='Légumes';
+    const matchRecherche = !recherche || p.nom.toLowerCase().includes(recherche.toLowerCase());
+    return matchRecherche;
+  });
 
-  const Nav = ({actif}: {actif: string}) => (
+  const Nav = ({actif}:{actif:string}) => (
     <nav style={{position:'fixed',bottom:0,left:0,width:'100%',zIndex:50,display:'flex',justifyContent:'space-around',alignItems:'center',padding:'12px 16px 24px',background:'rgba(255,255,255,0.95)',backdropFilter:'blur(20px)',boxShadow:'0 -8px 30px rgba(0,0,0,0.08)',borderRadius:'40px 40px 0 0'}}>
       {[
         {icon:'🏠',label:'Accueil',p:'onboarding'},
@@ -119,9 +144,7 @@ export default function App() {
   );
 
   const Toast = () => toast ? (
-    <div style={{position:'fixed',top:'20px',left:'50%',transform:'translateX(-50%)',background:'#012d1d',color:'white',padding:'14px 28px',borderRadius:'50px',fontWeight:'bold',zIndex:999,boxShadow:'0 8px 30px rgba(0,0,0,0.2)',fontSize:'15px',whiteSpace:'nowrap'}}>
-      {toast}
-    </div>
+    <div style={{position:'fixed',top:'20px',left:'50%',transform:'translateX(-50%)',background:'#012d1d',color:'white',padding:'14px 28px',borderRadius:'50px',fontWeight:'bold',zIndex:999,boxShadow:'0 8px 30px rgba(0,0,0,0.2)',fontSize:'15px',whiteSpace:'nowrap'}}>{toast}</div>
   ) : null;
 
   // ── ONBOARDING ────────────────────────────────────────────
@@ -148,7 +171,7 @@ export default function App() {
           {lang==='PL'&&'Karallaagal kaaloowo ɗemngal maa'}
           {lang==='EN'&&'Technology that speaks your language and watches over your land'}
         </p>
-        {utilisateur ? (
+        {utilisateur?(
           <div style={{width:'100%',maxWidth:'340px',display:'flex',flexDirection:'column',gap:'16px'}}>
             <div style={{background:'rgba(255,255,255,0.15)',borderRadius:'20px',padding:'20px',color:'white',textAlign:'center'}}>
               <p style={{fontSize:'20px',margin:'0 0 4px'}}>👋 Bonjour, {utilisateur.nom} !</p>
@@ -163,7 +186,7 @@ export default function App() {
               Se déconnecter
             </button>
           </div>
-        ) : (
+        ):(
           <div style={{width:'100%',maxWidth:'340px',display:'flex',flexDirection:'column',gap:'16px'}}>
             <button onClick={()=>{setFormRole('producteur');setPage('inscription');}}
               style={{width:'100%',background:'#1B4332',color:'white',border:'none',borderRadius:'16px',padding:'24px',cursor:'pointer',fontSize:'18px',fontWeight:'bold',display:'flex',flexDirection:'column',alignItems:'center',gap:'8px',borderBottom:'4px solid rgba(0,0,0,0.2)'}}>
@@ -299,8 +322,10 @@ export default function App() {
         <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',padding:'16px 24px',maxWidth:'1200px',margin:'0 auto'}}>
           <div style={{display:'flex',alignItems:'center',gap:'12px'}}>
             <div style={{width:'40px',height:'40px',borderRadius:'50%',overflow:'hidden',background:'#eae8e3',display:'flex',alignItems:'center',justifyContent:'center'}}>
-              {utilisateur?<div style={{width:'100%',height:'100%',background:'#1b4332',display:'flex',alignItems:'center',justifyContent:'center',color:'white',fontWeight:'bold',fontSize:'16px'}}>{utilisateur.nom[0].toUpperCase()}</div>
-              :<img src="https://lh3.googleusercontent.com/aida-public/AB6AXuBICydwOHLv1q4pAgCL8VlbkiZETPit4U9EDWkqBP9FesgExbdM55Jk1m0cJfKVdShoJ2PaQj3cfpYNpZV7ztAJ_U3LmuIb1EEL0vHkGhR9_LAGtDJZ640BEirzv92WVXTD1reetW70PrR02xRMBsxsnRaHYOXB50o0FMGMVazmt17VipGeomWVxgmjzgk9FN3hUdr8sgBAdQUMF3fR2st7T1wPSFPKdolgNEHhUXbvX4RdSrtkx7oXgLarjhw3A_9meghkOosn0hEj" alt="" style={{width:'100%',height:'100%',objectFit:'cover'}}/>}
+              {utilisateur
+                ?<div style={{width:'100%',height:'100%',background:'#1b4332',display:'flex',alignItems:'center',justifyContent:'center',color:'white',fontWeight:'bold',fontSize:'16px'}}>{utilisateur.nom[0].toUpperCase()}</div>
+                :<img src="https://lh3.googleusercontent.com/aida-public/AB6AXuBICydwOHLv1q4pAgCL8VlbkiZETPit4U9EDWkqBP9FesgExbdM55Jk1m0cJfKVdShoJ2PaQj3cfpYNpZV7ztAJ_U3LmuIb1EEL0vHkGhR9_LAGtDJZ640BEirzv92WVXTD1reetW70PrR02xRMBsxsnRaHYOXB50o0FMGMVazmt17VipGeomWVxgmjzgk9FN3hUdr8sgBAdQUMF3fR2st7T1wPSFPKdolgNEHhUXbvX4RdSrtkx7oXgLarjhw3A_9meghkOosn0hEj" alt="" style={{width:'100%',height:'100%',objectFit:'cover'}}/>
+              }
             </div>
             <div>
               <h1 style={{color:'#012d1d',fontWeight:'900',fontSize:'20px',letterSpacing:'-1px',textTransform:'uppercase',margin:0}}>AGRINOVA</h1>
@@ -313,16 +338,45 @@ export default function App() {
           </div>
         </div>
       </div>
+
       <div style={{maxWidth:'1200px',margin:'0 auto',padding:'16px 24px'}}>
-        <div style={{position:'relative',marginBottom:'24px'}}>
+        {/* Recherche */}
+        <div style={{position:'relative',marginBottom:'16px'}}>
           <span style={{position:'absolute',left:'16px',top:'50%',transform:'translateY(-50%)',fontSize:'20px'}}>🔍</span>
-          <input placeholder="Chercher un produit..." style={{width:'100%',paddingLeft:'48px',paddingRight:'24px',paddingTop:'16px',paddingBottom:'16px',background:'#e4e2dd',border:'none',borderRadius:'16px',fontSize:'16px',outline:'none',boxSizing:'border-box'}}/>
+          <input
+            value={recherche}
+            onChange={e=>setRecherche(e.target.value)}
+            placeholder="Chercher un produit..."
+            style={{width:'100%',paddingLeft:'48px',paddingRight:'24px',paddingTop:'16px',paddingBottom:'16px',background:'#e4e2dd',border:'none',borderRadius:'16px',fontSize:'16px',outline:'none',boxSizing:'border-box'}}/>
+          {recherche&&(
+            <button onClick={()=>setRecherche('')}
+              style={{position:'absolute',right:'16px',top:'50%',transform:'translateY(-50%)',background:'none',border:'none',cursor:'pointer',fontSize:'18px',color:'#717973'}}>✕</button>
+          )}
         </div>
+
+        {/* Filtres */}
         <div style={{display:'flex',gap:'12px',overflowX:'auto',paddingBottom:'8px',marginBottom:'32px'}}>
-          {['🥦 Légumes','🍊 Fruits','🌾 Céréales','🚚 Livraison'].map((f,i)=>(
-            <button key={f} style={{whiteSpace:'nowrap',padding:'12px 20px',borderRadius:'16px',border:'none',cursor:'pointer',fontWeight:'bold',fontSize:'14px',background:i===0?'#012d1d':'#eae8e3',color:i===0?'white':'#414844'}}>{f}</button>
+          {[
+            {label:'🥦 Légumes',cat:'Légumes'},
+            {label:'🍊 Fruits',cat:'Fruits'},
+            {label:'🌾 Céréales',cat:'Céréales'},
+            {label:'🥜 Légumineuses',cat:'Légumineuses'},
+          ].map(f=>(
+            <button key={f.cat}
+              onClick={()=>setCategorie(f.cat)}
+              style={{whiteSpace:'nowrap',padding:'12px 20px',borderRadius:'16px',border:'none',cursor:'pointer',fontWeight:'bold',fontSize:'14px',background:categorie===f.cat?'#012d1d':'#eae8e3',color:categorie===f.cat?'white':'#414844',transition:'all 0.2s',boxShadow:categorie===f.cat?'0 4px 12px rgba(1,45,29,0.3)':'none'}}>
+              {f.label}
+            </button>
           ))}
         </div>
+
+        {/* Résultats */}
+        {recherche&&(
+          <p style={{color:'#717973',fontSize:'14px',marginBottom:'16px'}}>
+            {produitsFiltres.length} résultat{produitsFiltres.length!==1?'s':''} pour "<strong>{recherche}</strong>"
+          </p>
+        )}
+
         {chargement?(
           <div style={{textAlign:'center',padding:'60px',color:'#717973'}}>
             <p style={{fontSize:'40px',marginBottom:'16px'}}>⏳</p>
@@ -330,13 +384,17 @@ export default function App() {
           </div>
         ):(
           <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fill, minmax(260px, 1fr))',gap:'24px'}}>
-            {listeProduits.map((p:any)=>(
+            {produitsFiltres
+              .filter(p=>categorie==='Légumes'||p.categorie===categorie)
+              .map((p:any)=>(
               <div key={p.id} style={{background:'white',borderRadius:'32px',overflow:'hidden',boxShadow:'0 2px 12px rgba(0,0,0,0.06)',border:'1px solid #f0eee9',transition:'transform 0.2s'}}
                 onMouseEnter={e=>(e.currentTarget.style.transform='translateY(-4px)')}
                 onMouseLeave={e=>(e.currentTarget.style.transform='translateY(0)')}>
                 <div style={{position:'relative',height:'220px',overflow:'hidden',background:'#f0eee9'}}>
-                  {p.img||p.photo?<img src={p.img||p.photo} alt={p.nom} style={{width:'100%',height:'100%',objectFit:'cover'}}/>
-                  :<div style={{width:'100%',height:'100%',display:'flex',alignItems:'center',justifyContent:'center',fontSize:'64px',background:'linear-gradient(135deg,#d8f3dc,#a8d5b5)'}}>🌿</div>}
+                  {p.img||p.photo
+                    ?<img src={p.img||p.photo} alt={p.nom} style={{width:'100%',height:'100%',objectFit:'cover'}}/>
+                    :<div style={{width:'100%',height:'100%',display:'flex',alignItems:'center',justifyContent:'center',fontSize:'64px',background:'linear-gradient(135deg,#d8f3dc,#a8d5b5)'}}>🌿</div>
+                  }
                   {p.certifie&&<div style={{position:'absolute',top:'12px',left:'12px',background:'rgba(255,255,255,0.9)',padding:'5px 10px',borderRadius:'50px',fontSize:'11px',fontWeight:'900',border:'1px solid #fbbf24',color:'#012d1d'}}>⭐ Certifié</div>}
                   <div style={{position:'absolute',bottom:'12px',left:'12px',background:p.est_disponible&&p.quantite_disponible>0?'#22c55e':'#ef4444',color:'white',padding:'3px 10px',borderRadius:'50px',fontSize:'10px',fontWeight:'bold'}}>
                     {p.est_disponible&&p.quantite_disponible>0?'✅ EN STOCK':'❌ ÉPUISÉ'}
@@ -366,17 +424,25 @@ export default function App() {
             ))}
           </div>
         )}
-        {listeProduits.length===0&&!chargement&&(
+
+        {produitsFiltres.filter(p=>categorie==='Légumes'||p.categorie===categorie).length===0&&!chargement&&(
           <div style={{textAlign:'center',padding:'60px 20px',color:'#aaa'}}>
             <p style={{fontSize:'48px',marginBottom:'16px'}}>🌿</p>
-            <p style={{fontWeight:'700',fontSize:'18px',marginBottom:'8px'}}>Aucun produit pour l'instant</p>
-            {utilisateur?.role==='producteur'&&<button onClick={()=>setPage('ajouter')} style={{background:'#012d1d',color:'white',border:'none',borderRadius:'14px',padding:'14px 28px',fontWeight:'bold',cursor:'pointer',fontSize:'16px',marginTop:'16px'}}>➕ Publier un produit</button>}
+            <p style={{fontWeight:'700',fontSize:'18px',marginBottom:'8px'}}>
+              {recherche?`Aucun résultat pour "${recherche}"`:'Aucun produit dans cette catégorie'}
+            </p>
+            {utilisateur?.role==='producteur'&&!recherche&&(
+              <button onClick={()=>setPage('ajouter')} style={{background:'#012d1d',color:'white',border:'none',borderRadius:'14px',padding:'14px 28px',fontWeight:'bold',cursor:'pointer',fontSize:'16px',marginTop:'16px'}}>
+                ➕ Publier un produit
+              </button>
+            )}
           </div>
         )}
       </div>
+
       <div style={{position:'fixed',bottom:'96px',left:0,width:'100%',display:'flex',justifyContent:'center',zIndex:40}}>
         <button onClick={()=>chargerProduits()} style={{background:'#012d1d',color:'white',padding:'16px 32px',borderRadius:'50px',fontWeight:'900',fontSize:'16px',border:'none',cursor:'pointer',boxShadow:'0 8px 30px rgba(1,45,29,0.4)'}}>
-          🔄 Actualiser ({listeProduits.length})
+          🔄 Actualiser ({produitsFiltres.filter(p=>categorie==='Légumes'||p.categorie===categorie).length})
         </button>
       </div>
       <Nav actif="marketplace"/>
@@ -393,17 +459,13 @@ export default function App() {
           <button style={{background:'none',border:'none',cursor:'pointer',fontSize:'22px'}}>🔔</button>
         </div>
       </div>
-
       <div style={{maxWidth:'900px',margin:'0 auto'}}>
-        {/* Carte profil principale */}
+        {/* Carte profil */}
         <div style={{background:'white',marginBottom:'12px',borderRadius:'0 0 12px 12px',overflow:'hidden',boxShadow:'0 2px 8px rgba(0,0,0,0.06)'}}>
-          {/* Bannière */}
           <div style={{height:'160px',background:'linear-gradient(135deg,#012d1d 0%,#1b4332 50%,#2d6a4f 100%)',position:'relative'}}>
             <div style={{position:'absolute',inset:0,opacity:0.15,backgroundImage:'url(https://images.unsplash.com/photo-1500382017468-9049fed747ef?q=80&w=2000)',backgroundSize:'cover',backgroundPosition:'center'}}/>
           </div>
-
           <div style={{padding:'0 24px 24px',position:'relative'}}>
-            {/* Avatar */}
             <div style={{marginTop:'-48px',marginBottom:'12px',display:'flex',justifyContent:'space-between',alignItems:'flex-end',flexWrap:'wrap',gap:'12px'}}>
               <div style={{width:'96px',height:'96px',borderRadius:'50%',border:'4px solid white',background:'linear-gradient(135deg,#012d1d,#1b4332)',display:'flex',alignItems:'center',justifyContent:'center',color:'white',fontWeight:'bold',fontSize:'36px',boxShadow:'0 4px 16px rgba(0,0,0,0.2)'}}>
                 {utilisateur?.nom?.[0]?.toUpperCase()||'P'}
@@ -419,26 +481,23 @@ export default function App() {
                 </button>
               </div>
             </div>
-
             <h2 style={{fontWeight:'900',color:'#012d1d',fontSize:'22px',margin:'0 0 4px'}}>{utilisateur?.nom||'Mon Profil'}</h2>
             <p style={{color:'#414844',fontSize:'15px',margin:'0 0 4px',fontWeight:'600'}}>🚜 Producteur Agricole • Agrinova</p>
             <p style={{color:'#717973',fontSize:'14px',margin:'0 0 16px'}}>📍 {utilisateur?.localisation||'Sénégal'} • Membre depuis 2024</p>
-
             <div style={{display:'flex',gap:'8px',flexWrap:'wrap',marginBottom:'16px'}}>
               {['🏅 Top Producteur','✅ Certifié Agrinova','🚀 Livraison Rapide'].map(b=>(
                 <span key={b} style={{background:'#f0faf3',color:'#012d1d',padding:'6px 14px',borderRadius:'50px',fontSize:'12px',fontWeight:'bold',border:'1px solid #cdebc4'}}>{b}</span>
               ))}
             </div>
-
-            {/* Stats LinkedIn style */}
+            {/* Stats réelles */}
             <div style={{borderTop:'1px solid #e4e2dd',paddingTop:'16px',display:'flex',gap:'24px',flexWrap:'wrap'}}>
               {[
-                {v:'0',l:'Produits publiés'},
-                {v:'0',l:'Ventes réalisées'},
-                {v:'⭐ 0.0',l:'Note moyenne'},
-                {v:'0',l:'Clients satisfaits'},
+                {v:statsProducteur.produits.toString(),l:'Produits publiés'},
+                {v:statsProducteur.commandes.toString(),l:'Ventes réalisées'},
+                {v:`⭐ ${statsProducteur.note.toFixed(1)}`,l:'Note moyenne'},
+                {v:statsProducteur.clients.toString(),l:'Clients satisfaits'},
               ].map((s,i)=>(
-                <div key={i} style={{cursor:'pointer'}}>
+                <div key={i}>
                   <p style={{fontWeight:'900',color:'#012d1d',fontSize:'18px',margin:0}}>{s.v}</p>
                   <p style={{fontSize:'12px',color:'#717973',margin:'2px 0 0',textDecoration:'underline dotted'}}>{s.l}</p>
                 </div>
@@ -452,7 +511,7 @@ export default function App() {
           <h3 style={{fontWeight:'800',color:'#012d1d',fontSize:'16px',margin:'0 0 16px'}}>Actions rapides</h3>
           <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:'12px'}}>
             {[
-              {icon:'🌾',title:'Mes produits',sub:'Gérer mes publications',action:()=>setPage('marketplace')},
+              {icon:'🌾',title:'Mes produits',sub:'Voir le marketplace',action:()=>setPage('marketplace')},
               {icon:'📦',title:'Commandes',sub:'Suivre les livraisons',action:()=>setPage('livraison')},
               {icon:'💬',title:'Messages',sub:'Parler aux acheteurs',action:()=>setPage('chat')},
               {icon:'🤖',title:'AgrinovaBot',sub:'Conseils agricoles IA',action:()=>setPage('bot')},
@@ -471,18 +530,18 @@ export default function App() {
           </div>
         </div>
 
-        {/* Résumé ventes */}
+        {/* Dashboard avec vrais chiffres */}
         <div style={{background:'white',borderRadius:'12px',padding:'20px',marginBottom:'12px',boxShadow:'0 2px 8px rgba(0,0,0,0.06)'}}>
           <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:'16px'}}>
             <h3 style={{fontWeight:'800',color:'#012d1d',fontSize:'16px',margin:0}}>📊 Tableau de bord</h3>
-            <span style={{fontSize:'12px',color:'#717973'}}>Ce mois-ci</span>
+            <span style={{fontSize:'12px',color:'#717973'}}>Données réelles</span>
           </div>
           <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:'12px',marginBottom:'16px'}}>
             {[
-              {v:'1.250.000',u:'FCFA',l:'Revenus totaux',bg:'#f0faf3',c:'#012d1d'},
-              {v:'24',u:'cmd',l:'Commandes reçues',bg:'#f0faf3',c:'#2d6a4f'},
-              {v:'65%',u:'',l:'Objectif mensuel',bg:'#fef9c3',c:'#854d0e'},
-              {v:'4.8',u:'⭐',l:'Note clients',bg:'#fef9c3',c:'#854d0e'},
+              {v:statsProducteur.revenus>0?statsProducteur.revenus.toLocaleString():'0',u:'FCFA',l:'Revenus totaux',bg:'#f0faf3',c:'#012d1d'},
+              {v:statsProducteur.commandes.toString(),u:'cmd',l:'Commandes reçues',bg:'#f0faf3',c:'#2d6a4f'},
+              {v:statsProducteur.produits>0?`${Math.min(Math.round((statsProducteur.commandes/Math.max(statsProducteur.produits,1))*10),100)}%`:'0%',u:'',l:'Taux de conversion',bg:'#fef9c3',c:'#854d0e'},
+              {v:statsProducteur.note.toFixed(1),u:'⭐',l:'Note clients',bg:'#fef9c3',c:'#854d0e'},
             ].map((s,i)=>(
               <div key={i} style={{background:s.bg,borderRadius:'12px',padding:'16px'}}>
                 <p style={{fontSize:'20px',fontWeight:'900',color:s.c,margin:0}}>{s.v} <span style={{fontSize:'13px'}}>{s.u}</span></p>
@@ -490,10 +549,6 @@ export default function App() {
               </div>
             ))}
           </div>
-          <div style={{height:'8px',background:'#e4e2dd',borderRadius:'4px',overflow:'hidden'}}>
-            <div style={{height:'100%',background:'linear-gradient(90deg,#012d1d,#2d6a4f)',width:'65%',borderRadius:'4px'}}/>
-          </div>
-          <p style={{fontSize:'12px',color:'#717973',margin:'8px 0 0'}}>65% de l'objectif mensuel atteint</p>
         </div>
 
         {/* Déconnexion */}
@@ -531,10 +586,21 @@ export default function App() {
                 <button onClick={seDeconnecter} style={{background:'transparent',color:'#c0392b',border:'1px solid #fde8e8',borderRadius:'20px',padding:'10px 20px',fontWeight:'bold',cursor:'pointer',fontSize:'14px'}}>Déconnexion</button>
               </div>
             </div>
-            <h2 style={{fontWeight:'900',color:'#012d1d',fontSize:'22px',margin:'0 0 4px'}}>{utilisateur?.nom||'Mon Profil'}</h2>
-            <p style={{color:'#414844',fontSize:'15px',margin:'0 0 4px',fontWeight:'600'}}>🛒 Acheteur • Agrinova</p>
-            <p style={{color:'#717973',fontSize:'14px',margin:'0 0 16px'}}>📍 {utilisateur?.localisation||'Sénégal'}</p>
-            {!utilisateur&&(
+            {utilisateur?(
+              <>
+                <h2 style={{fontWeight:'900',color:'#012d1d',fontSize:'22px',margin:'0 0 4px'}}>{utilisateur.nom}</h2>
+                <p style={{color:'#414844',fontSize:'15px',margin:'0 0 4px',fontWeight:'600'}}>🛒 Acheteur • Agrinova</p>
+                <p style={{color:'#717973',fontSize:'14px',margin:'0 0 16px'}}>📍 {utilisateur.localisation||'Sénégal'}</p>
+                <div style={{borderTop:'1px solid #e4e2dd',paddingTop:'16px',display:'flex',gap:'24px'}}>
+                  {[{v:'0',l:'Commandes'},{v:'⭐ 0.0',l:'Satisfaction'},{v:'2024',l:'Membre depuis'}].map((s,i)=>(
+                    <div key={i}>
+                      <p style={{fontWeight:'900',color:'#012d1d',fontSize:'18px',margin:0}}>{s.v}</p>
+                      <p style={{fontSize:'12px',color:'#717973',margin:'2px 0 0'}}>{s.l}</p>
+                    </div>
+                  ))}
+                </div>
+              </>
+            ):(
               <div style={{textAlign:'center',padding:'40px 0'}}>
                 <p style={{fontSize:'48px',marginBottom:'16px'}}>👤</p>
                 <h3 style={{color:'#012d1d',marginBottom:'16px'}}>Connecte-toi pour voir ton profil</h3>
@@ -565,18 +631,14 @@ export default function App() {
       </div>
       <div style={{flex:1,display:'flex',overflow:'hidden'}}>
         <div style={{width:'260px',background:'white',borderRight:'1px solid #f0eee9',overflowY:'auto',flexShrink:0}}>
-          <div style={{padding:'16px',borderBottom:'1px solid #f0eee9'}}>
-            <p style={{fontWeight:'900',color:'#012d1d',fontSize:'16px',margin:0}}>💬 Messages</p>
-          </div>
+          <div style={{padding:'16px',borderBottom:'1px solid #f0eee9'}}><p style={{fontWeight:'900',color:'#012d1d',fontSize:'16px',margin:0}}>💬 Messages</p></div>
           {[
             {id:1,nom:'Aminata Sarr',msg:'Je veux 10kg...',heure:'09:20',nonLu:2,img:'https://lh3.googleusercontent.com/aida-public/AB6AXuDOWXx1wjM1nkHElV0AyKpeZN0A_uV81LAdAgeawM2e6JzzOZzX-2BQVilybDmqFgTMJ8mcMACWNu8r11pilus21ubhmeXejg4g5kdbjIut0cEZRV7duwn6cL9clE-6qy71s6xZWQ2FDTftIMANZpKni7GvvOYweZmW-F39Z1hTQBVqSxCtfDat9a2Ym6PrYn_7Era0tazFdbecuTf_AluwXvJ76laCSR4d_9YCI6jNCUBBfy6qFn1NUW5ybeVN3mL93sYQAPXlMilV'},
             {id:2,nom:'Moussa Ba',msg:'Commande passée ✅',heure:'Hier',nonLu:0,img:'https://lh3.googleusercontent.com/aida-public/AB6AXuDvcRfgyU7MMvrz_s_Ogqj0vVvASK1DJfK3o4wSQvUcdwYZ3jik7_RkAjCVzXIJPABdOjyPj9p7o0rhwLQDck7rOzrupZekUaXz11LXjtaP-3uT07Sv_tYWig79qGeUNw1sqjjxWFaKTOEHdh_U5zEHBHH3CNBUlAK4PXfVxEJW3eZtkF-RdOYN31oqblPXhg1y1DAJQQ_0Ab1aEaM7WY0uxuNkZPPRWjHX1rM8dnDcWpTW89XDERcY1_c1GdvmK8uDE3UcdVM630DT'},
           ].map(c=>(
             <div key={c.id} style={{padding:'14px 16px',display:'flex',gap:'10px',alignItems:'center',cursor:'pointer',borderBottom:'1px solid #f9f8f6',background:c.id===1?'#f0faf3':'white'}}>
               <div style={{position:'relative',flexShrink:0}}>
-                <div style={{width:'44px',height:'44px',borderRadius:'50%',overflow:'hidden',background:'#eae8e3'}}>
-                  <img src={c.img} alt="" style={{width:'100%',height:'100%',objectFit:'cover'}}/>
-                </div>
+                <div style={{width:'44px',height:'44px',borderRadius:'50%',overflow:'hidden',background:'#eae8e3'}}><img src={c.img} alt="" style={{width:'100%',height:'100%',objectFit:'cover'}}/></div>
                 {c.nonLu>0&&<span style={{position:'absolute',top:'-2px',right:'-2px',background:'#ef4444',color:'white',borderRadius:'50%',width:'18px',height:'18px',display:'flex',alignItems:'center',justifyContent:'center',fontSize:'10px',fontWeight:'bold'}}>{c.nonLu}</span>}
               </div>
               <div style={{flex:1,minWidth:0}}>
@@ -593,9 +655,7 @@ export default function App() {
           <div style={{flex:1,overflowY:'auto',padding:'20px',display:'flex',flexDirection:'column',gap:'12px',background:'#f9f8f6'}}>
             {messages.map(m=>(
               <div key={m.id} style={{display:'flex',justifyContent:m.moi?'flex-end':'flex-start',alignItems:'flex-end',gap:'8px'}}>
-                {!m.moi&&<div style={{width:'28px',height:'28px',borderRadius:'50%',overflow:'hidden',background:'#eae8e3',flexShrink:0}}>
-                  <img src="https://lh3.googleusercontent.com/aida-public/AB6AXuDOWXx1wjM1nkHElV0AyKpeZN0A_uV81LAdAgeawM2e6JzzOZzX-2BQVilybDmqFgTMJ8mcMACWNu8r11pilus21ubhmeXejg4g5kdbjIut0cEZRV7duwn6cL9clE-6qy71s6xZWQ2FDTftIMANZpKni7GvvOYweZmW-F39Z1hTQBVqSxCtfDat9a2Ym6PrYn_7Era0tazFdbecuTf_AluwXvJ76laCSR4d_9YCI6jNCUBBfy6qFn1NUW5ybeVN3mL93sYQAPXlMilV" alt="" style={{width:'100%',height:'100%',objectFit:'cover'}}/>
-                </div>}
+                {!m.moi&&<div style={{width:'28px',height:'28px',borderRadius:'50%',overflow:'hidden',background:'#eae8e3',flexShrink:0}}><img src="https://lh3.googleusercontent.com/aida-public/AB6AXuDOWXx1wjM1nkHElV0AyKpeZN0A_uV81LAdAgeawM2e6JzzOZzX-2BQVilybDmqFgTMJ8mcMACWNu8r11pilus21ubhmeXejg4g5kdbjIut0cEZRV7duwn6cL9clE-6qy71s6xZWQ2FDTftIMANZpKni7GvvOYweZmW-F39Z1hTQBVqSxCtfDat9a2Ym6PrYn_7Era0tazFdbecuTf_AluwXvJ76laCSR4d_9YCI6jNCUBBfy6qFn1NUW5ybeVN3mL93sYQAPXlMilV" alt="" style={{width:'100%',height:'100%',objectFit:'cover'}}/></div>}
                 <div style={{maxWidth:'65%'}}>
                   <div style={{padding:'12px 16px',borderRadius:m.moi?'20px 20px 4px 20px':'20px 20px 20px 4px',background:m.moi?'#012d1d':'white',color:m.moi?'white':'#1b1c19',boxShadow:'0 2px 8px rgba(0,0,0,0.06)',fontSize:'14px',lineHeight:'1.5'}}>{m.texte}</div>
                   <div style={{display:'flex',justifyContent:m.moi?'flex-end':'flex-start',gap:'4px',marginTop:'3px'}}>
@@ -635,7 +695,7 @@ export default function App() {
         <div style={{textAlign:'center',padding:'20px 0'}}>
           <div style={{width:'80px',height:'80px',borderRadius:'50%',background:'rgba(255,255,255,0.15)',display:'flex',alignItems:'center',justifyContent:'center',fontSize:'40px',margin:'0 auto 12px'}}>🤖</div>
           <p style={{color:'white',fontWeight:'700',fontSize:'16px',margin:'0 0 4px'}}>AgrinovaBot</p>
-          <p style={{color:'rgba(255,255,255,0.6)',fontSize:'13px',margin:0}}>{utilisateur?`Bonjour ${utilisateur.nom} ! Comment puis-je vous aider ?`:"Comment puis-je vous aider aujourd'hui ?"}</p>
+          <p style={{color:'rgba(255,255,255,0.6)',fontSize:'13px',margin:0}}>{utilisateur?`Bonjour ${utilisateur.nom} !`:"Comment puis-je vous aider ?"}</p>
         </div>
         {[
           {t:"Bonjour ! Je suis AgrinovaBot 🌱 Je peux vous aider sur les cultures, les prix du marché, la météo et bien plus."},
@@ -680,7 +740,7 @@ export default function App() {
       </div>
       <div style={{maxWidth:'600px',margin:'0 auto',padding:'24px'}}>
         <div style={{background:'white',borderRadius:'24px',padding:'20px',marginBottom:'16px',display:'flex',gap:'16px',alignItems:'center',boxShadow:'0 2px 12px rgba(0,0,0,0.06)'}}>
-          <div style={{width:'80px',height:'80px',borderRadius:'16px',overflow:'hidden',flexShrink:0,background:'linear-gradient(135deg,#d8f3dc,#a8d5b5)',display:'flex',alignItems:'center',justifyContent:'center',fontSize:'40px'}}>🍅</div>
+          <div style={{width:'80px',height:'80px',borderRadius:'16px',background:'linear-gradient(135deg,#d8f3dc,#a8d5b5)',display:'flex',alignItems:'center',justifyContent:'center',fontSize:'40px',flexShrink:0}}>🍅</div>
           <div style={{flex:1}}>
             <h3 style={{fontWeight:'900',color:'#012d1d',fontSize:'16px',margin:'0 0 4px'}}>Tomates de Thiès</h3>
             <p style={{color:'#717973',fontSize:'13px',margin:'0 0 8px'}}>Moussa Diop • Thiès</p>
@@ -694,12 +754,10 @@ export default function App() {
             </div>
           </div>
         </div>
-
         <div style={{background:'white',borderRadius:'24px',padding:'20px',marginBottom:'16px',boxShadow:'0 2px 12px rgba(0,0,0,0.06)'}}>
           <h3 style={{fontWeight:'900',color:'#012d1d',fontSize:'16px',margin:'0 0 16px'}}>📍 Adresse de livraison</h3>
           <input placeholder="Ex: Dakar Plateau, Rue de Thiong..." style={{width:'100%',padding:'14px 16px',background:'#f0eee9',border:'none',borderRadius:'14px',fontSize:'14px',outline:'none',boxSizing:'border-box'}}/>
         </div>
-
         <div style={{background:'white',borderRadius:'24px',padding:'20px',marginBottom:'24px',boxShadow:'0 2px 12px rgba(0,0,0,0.06)'}}>
           <h3 style={{fontWeight:'900',color:'#012d1d',fontSize:'16px',margin:'0 0 16px'}}>📋 Récapitulatif</h3>
           {[{l:'Sous-total',v:'3 500 FCFA'},{l:'Livraison',v:'500 FCFA'},{l:'Commission Agrinova (3%)',v:'105 FCFA'}].map(r=>(
@@ -713,7 +771,6 @@ export default function App() {
             <span style={{fontWeight:'900',color:'#012d1d',fontSize:'24px'}}>4 105 FCFA</span>
           </div>
         </div>
-
         <h3 style={{fontWeight:'900',color:'#012d1d',fontSize:'16px',marginBottom:'16px'}}>💳 Choisir le paiement</h3>
         <div style={{display:'flex',flexDirection:'column',gap:'12px'}}>
           {[
@@ -762,7 +819,7 @@ export default function App() {
         </div>
       </div>
       <div style={{maxWidth:'600px',margin:'0 auto',padding:'24px',display:'flex',flexDirection:'column',gap:'20px'}}>
-        <div style={{borderRadius:'32px',overflow:'hidden',height:'200px',background:'linear-gradient(135deg,#cdebc4,#a8d5b5)',display:'flex',alignItems:'center',justifyContent:'center'}}>
+        <div style={{borderRadius:'32px',height:'200px',background:'linear-gradient(135deg,#cdebc4,#a8d5b5)',display:'flex',alignItems:'center',justifyContent:'center'}}>
           <div style={{textAlign:'center'}}>
             <div style={{fontSize:'48px',marginBottom:'8px'}}>🗺️</div>
             <p style={{fontWeight:'bold',color:'#012d1d',margin:0}}>Plateau, Avenue Marchand</p>
