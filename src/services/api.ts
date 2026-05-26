@@ -1,4 +1,6 @@
-const BASE = 'http://127.0.0.1:8000/api';
+// const BASE = 'http://127.0.0.1:8000/api';
+const BASE = 'https://agrinova-backend-yt2f.onrender.com/api';
+
 
 export async function api(endpoint: string, method = 'GET', body?: object) {
   const token = localStorage.getItem('agrinova_token');
