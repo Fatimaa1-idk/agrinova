@@ -1,6 +1,6 @@
 import { useEffect, type ReactNode } from 'react';
 import { Navigation, BotFloatingAssistant } from '../components/ui';
-import { useRouter, type RoutePath } from '../router/RouterContext';
+import { useRouter, type RoutePath, type RouteState } from '../router/RouterContext';
 import { useAuth } from '../context/AuthContext';
 
 interface AppLayoutProps {
@@ -21,8 +21,8 @@ export function AppLayout({ children }: AppLayoutProps) {
     }
   }, [currentPath, user]);
 
-  const handleNavigation = (page: RoutePath) => {
-    navigate(page);
+  const handleNavigation = (page: RoutePath, state?: RouteState) => {
+    navigate(page, state);
   };
 
   return (

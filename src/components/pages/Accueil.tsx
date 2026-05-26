@@ -14,6 +14,7 @@ import {
   Sun, ClipboardList, Globe, MapPin,
   Award, ShieldCheck, CheckCircle, Clock,
   Pencil, Camera, Save, Calendar, Wheat, Settings, HelpCircle, LogOut, Info, Shield, Phone,
+  X, AlertTriangle,
 } from 'lucide-react';
 
 const LANGUAGES = [
@@ -24,7 +25,7 @@ const LANGUAGES = [
 ];
 
 type Lang = 'FR' | 'WO' | 'PL' | 'EN';
-type Section = 'dashboard' | 'profil' | 'settings';
+type Section = 'dashboard' | 'profil' | 'commandes' | 'catalogue' | 'settings';
 
 const T: Record<Lang, {
   greeting: string;
@@ -75,16 +76,28 @@ const T: Record<Lang, {
   },
 };
 
-const NAV_SECTIONS = [
-  { id: 'dashboard' as Section, label: 'Tableau de bord', icon: LayoutDashboard },
-  { id: 'profil' as Section, label: 'Mon Profil', icon: User },
-  { id: 'settings' as Section, label: 'Paramètres', icon: Settings },
-];
+const statutConfig: Record<string, { label: string; bg: string; text: string; icon: React.FC<any> }> = {
+  en_attente:   { label: 'En attente',  bg: 'bg-amber-50 border-amber-100',   text: 'text-amber-600',  icon: Clock },
+  confirmee:    { label: 'Confirmée',   bg: 'bg-blue-50 border-blue-100',     text: 'text-blue-600',   icon: CheckCircle },
+  en_livraison: { label: 'En livraison',bg: 'bg-indigo-50 border-indigo-100', text: 'text-indigo-600', icon: Package },
+  livree:       { label: 'Livrée',      bg: 'bg-emerald-50 border-emerald-100', text: 'text-emerald-600', icon: CheckCircle },
+  annulee:      { label: 'Annulée',     bg: 'bg-red-50 border-red-100',       text: 'text-red-500',    icon: X },
+};
 
 const Accueil = () => {
   const { user, logout } = useAuth();
   const { showToast } = useToast();
   const { navigate, routeState } = useRouter();
+
+  const isProducteur = user?.role === 'producteur';
+
+  const NAV_SECTIONS: { id: Section; label: string; icon: React.FC<any> }[] = [
+    { id: 'dashboard',  label: 'Tableau de bord', icon: LayoutDashboard },
+    { id: 'commandes',  label: 'Commandes',        icon: Package },
+    ...(isProducteur ? [{ id: 'catalogue' as Section, label: 'Catalogue', icon: ClipboardList }] : []),
+    { id: 'profil',     label: 'Mon Profil',       icon: User },
+    { id: 'settings',   label: 'Paramètres',       icon: Settings },
+  ];
 
   // UI state
   const [lang, setLang] = useState<Lang>('FR');
@@ -93,12 +106,12 @@ const Accueil = () => {
 
   // Producteur modals
   const [isAjoutProduitOpen, setIsAjoutProduitOpen] = useState(false);
-  const [isGestionProduitsOpen, setIsGestionProduitsOpen] = useState(false);
 
   // Dashboard data
   const [stats, setStats] = useState({ a: 0, b: 0, c: 0.0, d: 0 });
   const [commandes, setCommandes] = useState<any[]>([]);
   const [orderFilter, setOrderFilter] = useState<'toutes' | 'en_cours' | 'terminees'>('toutes');
+  const [cancelingId, setCancelingId] = useState<number | null>(null);
 
   // Profile form state
   const [isEditing, setIsEditing] = useState(false);
@@ -117,15 +130,14 @@ const Accueil = () => {
   const [notifWhatsApp, setNotifWhatsApp] = useState(true);
   const [preferredLanguage, setPreferredLanguage] = useState<'fr' | 'wo'>('fr');
 
-  const isProducteur = user?.role === 'producteur';
   const t = T[lang];
   const role = isProducteur ? 'producteur' : 'acheteur';
   const initials = user?.nom?.split(' ').map((n: string) => n[0]).slice(0, 2).join('') || '?';
 
-  // Handle tab navigation from routeState (e.g. navigate('accueil', { tab: 'profil' }))
+  // Handle tab navigation from routeState
   useEffect(() => {
     const tab = routeState?.tab as string | undefined;
-    if (tab === 'profil' || tab === 'settings' || tab === 'dashboard') {
+    if (tab && ['profil', 'settings', 'dashboard', 'commandes', 'catalogue'].includes(tab)) {
       setActiveSection(tab as Section);
     }
   }, [routeState]);
@@ -133,32 +145,24 @@ const Accueil = () => {
   // Load dashboard data
   useEffect(() => {
     if (!user) return;
-    const mockCmds = [
-      { id: 1, reference: 'CMD-0012', date_commande: new Date().toISOString(), montant_total: 45000, statut: 'en_attente' },
-      { id: 2, reference: 'CMD-0010', date_commande: new Date(Date.now() - 86400000).toISOString(), montant_total: 12500, statut: 'livree' },
-      { id: 3, reference: 'CMD-0008', date_commande: new Date(Date.now() - 86400000 * 3).toISOString(), montant_total: 25000, statut: 'livree' },
-    ];
     const load = async () => {
       try {
         if (isProducteur) {
           const [produitsRes, commandesRes] = await Promise.all([api('/mes-produits'), api('/mes-commandes')]);
-          const nProd = Array.isArray(produitsRes) ? produitsRes.length : 12;
+          const nProd = Array.isArray(produitsRes) ? produitsRes.length : 0;
           const nCmdList = Array.isArray(commandesRes) ? commandesRes : [];
-          const nCmd = nCmdList.length > 0 ? nCmdList.length : 48;
-          const rev = nCmdList.length > 0
-            ? nCmdList.reduce((s: number, c: any) => s + (c.montant_total || 0), 0)
-            : 95000;
-          setStats({ a: nProd, b: nCmd, c: 4.8, d: rev });
-          setCommandes(nCmdList.length > 0 ? nCmdList : mockCmds);
+          const rev = nCmdList.reduce((s: number, c: any) => s + (c.montant_total || 0), 0);
+          setStats({ a: nProd, b: nCmdList.length, c: 4.8, d: rev });
+          setCommandes(nCmdList);
         } else {
           const resCmd = await api('/mes-commandes');
           const nCmdList = Array.isArray(resCmd) ? resCmd : [];
-          setStats({ a: nCmdList.length || 0, b: 5, c: 0, d: 42000 });
-          setCommandes(nCmdList.length > 0 ? nCmdList : mockCmds);
+          const spent = nCmdList.reduce((s: number, c: any) => s + (c.montant_total || 0), 0);
+          setStats({ a: nCmdList.length, b: 5, c: 0, d: spent });
+          setCommandes(nCmdList);
         }
       } catch {
-        setStats(isProducteur ? { a: 12, b: 48, c: 4.8, d: 95000 } : { a: 3, b: 5, c: 0, d: 42000 });
-        setCommandes(mockCmds);
+        setStats(isProducteur ? { a: 0, b: 0, c: 4.8, d: 0 } : { a: 0, b: 0, c: 0, d: 0 });
       }
     };
     load();
@@ -166,10 +170,22 @@ const Accueil = () => {
 
   const filteredCommandes = commandes.filter(c => {
     if (orderFilter === 'toutes') return true;
-    if (orderFilter === 'en_cours') return c.statut !== 'livree' && c.statut !== 'annulée';
+    if (orderFilter === 'en_cours') return c.statut !== 'livree' && c.statut !== 'annulee';
     if (orderFilter === 'terminees') return c.statut === 'livree';
     return true;
   });
+
+  const handleCancelOrder = async (id: number) => {
+    setCancelingId(id);
+    try {
+      await api(`/commandes/${id}`, 'DELETE');
+      setCommandes(prev => prev.map(c => c.id === id ? { ...c, statut: 'annulee' } : c));
+      showToast('Commande annulée avec succès');
+    } catch {
+      showToast('Impossible d\'annuler cette commande');
+    }
+    setCancelingId(null);
+  };
 
   const handleSpeak = () => {
     if (!('speechSynthesis' in window)) return;
@@ -192,7 +208,6 @@ const Accueil = () => {
     ? [Package, ShoppingBag, Star, DollarSign]
     : [ClipboardList, Heart, Wallet, Zap];
 
-  // Profile handlers
   const handleInputChange = (field: string, value: string) => {
     setFormData(prev => ({ ...prev, [field]: value }));
     if (formErrors[field]) setFormErrors(prev => ({ ...prev, [field]: '' }));
@@ -245,6 +260,67 @@ const Accueil = () => {
   };
 
   const openBot = () => window.dispatchEvent(new Event('open-agrinova-bot'));
+
+  /* ── ORDER CARD ─────────────────────────────────────────────── */
+  const OrderCard = ({ cmd, showCancel = false }: { cmd: any; showCancel?: boolean }) => {
+    const cfg = statutConfig[cmd.statut] || statutConfig['en_attente'];
+    const Icon = cfg.icon;
+    const isEnAttente = cmd.statut === 'en_attente';
+    return (
+      <div className="bg-surface hover:bg-surface-container-low rounded-xl border border-surface-container-high p-3.5 transition-colors">
+        <div className="flex items-start justify-between gap-2">
+          <div className="flex items-start gap-3 min-w-0 flex-1">
+            <div className={cn('w-10 h-10 rounded-lg flex items-center justify-center border shrink-0 mt-0.5', cfg.bg, cfg.text)}>
+              <Icon size={18} />
+            </div>
+            <div className="min-w-0">
+              <p className="font-bold text-sm text-primary truncate">
+                {cmd.produit_nom || cmd.reference || `Commande #${cmd.id}`}
+              </p>
+              {cmd.quantite && (
+                <p className="text-[10px] text-primary/50 font-semibold">
+                  {cmd.quantite} {cmd.produit_unite || 'unité(s)'} • {cmd.produit_prix ? `${cmd.produit_prix.toLocaleString()} FCFA/${cmd.produit_unite || 'u'}` : ''}
+                </p>
+              )}
+              {isProducteur && cmd.acheteur_nom && (
+                <p className="text-[10px] text-primary/50 font-semibold mt-0.5">
+                  Acheteur : <span className="text-primary/70">{cmd.acheteur_nom}</span>
+                </p>
+              )}
+              {!isProducteur && cmd.agriculteur_nom && (
+                <p className="text-[10px] text-primary/50 font-semibold mt-0.5">
+                  Vendeur : <span className="text-primary/70">{cmd.agriculteur_nom}</span>
+                </p>
+              )}
+            </div>
+          </div>
+
+          <div className="flex flex-col items-end gap-1.5 shrink-0">
+            <p className="font-black text-primary text-sm">{(cmd.montant_total || 0).toLocaleString()} F</p>
+            <span className={cn('inline-flex items-center gap-0.5 px-2 py-0.5 rounded-md text-[9px] font-bold border', cfg.bg, cfg.text)}>
+              {cfg.label}
+            </span>
+            <p className="text-[9px] font-semibold text-primary/35">
+              {new Date(cmd.date_commande || Date.now()).toLocaleDateString('fr-FR')}
+            </p>
+          </div>
+        </div>
+
+        {showCancel && !isProducteur && isEnAttente && (
+          <div className="mt-3 pt-3 border-t border-surface-container-high flex justify-end">
+            <button
+              onClick={() => handleCancelOrder(cmd.id)}
+              disabled={cancelingId === cmd.id}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-red-50 border border-red-100 text-red-600 text-xs font-bold hover:bg-red-100 transition-colors disabled:opacity-60"
+            >
+              <AlertTriangle size={11} />
+              {cancelingId === cmd.id ? 'Annulation...' : 'Annuler la commande'}
+            </button>
+          </div>
+        )}
+      </div>
+    );
+  };
 
   return (
     <div className="min-h-screen bg-surface pb-24 text-primary font-sans">
@@ -353,6 +429,11 @@ const Accueil = () => {
             >
               <Icon size={13} strokeWidth={2.5} />
               {label}
+              {id === 'commandes' && commandes.filter(c => c.statut === 'en_attente').length > 0 && (
+                <span className="ml-0.5 bg-amber-400 text-primary text-[9px] font-black px-1.5 py-0.5 rounded-full leading-none">
+                  {commandes.filter(c => c.statut === 'en_attente').length}
+                </span>
+              )}
             </button>
           ))}
         </div>
@@ -415,7 +496,7 @@ const Accueil = () => {
                       Publier une offre
                     </button>
                     <button
-                      onClick={() => setIsGestionProduitsOpen(true)}
+                      onClick={() => setActiveSection('catalogue')}
                       className="w-full flex items-center justify-center gap-1.5 py-3 bg-surface hover:bg-surface-container-low text-primary border border-surface-container-high font-bold rounded-xl transition-all duration-200 text-xs shadow-sm"
                     >
                       <ClipboardList size={14} />
@@ -443,68 +524,105 @@ const Accueil = () => {
               </section>
             </div>
 
-            {/* RIGHT COLUMN: Orders */}
-            <div className="col-span-12 lg:col-span-8 bg-white rounded-2xl border border-surface-container-high p-5 md:p-6 shadow-sm flex flex-col min-h-[400px]">
-              <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 mb-5">
+            {/* RIGHT COLUMN: Last 4 orders */}
+            <div className="col-span-12 lg:col-span-8 bg-white rounded-2xl border border-surface-container-high p-5 md:p-6 shadow-sm flex flex-col min-h-[340px]">
+              <div className="flex items-center justify-between mb-5">
                 <h2 className="font-headline font-black text-lg text-primary tracking-tight flex items-center gap-2">
                   <Package size={18} className="text-secondary" />
-                  Suivi des Commandes
+                  Dernières Commandes
                 </h2>
-                <div className="flex bg-surface-container-low rounded-lg p-0.5 w-full sm:w-auto overflow-x-auto">
-                  {(['toutes', 'en_cours', 'terminees'] as const).map(f => (
-                    <button
-                      key={f}
-                      onClick={() => setOrderFilter(f)}
-                      className={cn(
-                        'px-3 py-1.5 text-xs font-bold rounded-md transition-all whitespace-nowrap',
-                        orderFilter === f ? 'bg-white text-primary shadow-sm' : 'text-primary/50 hover:text-primary'
-                      )}
-                    >
-                      {f === 'en_cours' ? 'En cours' : f === 'terminees' ? 'Terminées' : 'Toutes'}
-                    </button>
-                  ))}
-                </div>
+                <button
+                  onClick={() => setActiveSection('commandes')}
+                  className="flex items-center gap-1 text-xs font-bold text-secondary hover:text-primary transition-colors"
+                >
+                  Voir toutes
+                  <ChevronRight size={13} />
+                </button>
               </div>
 
-              <div className="flex-1 overflow-y-auto pr-1 space-y-2">
-                {filteredCommandes.map(cmd => (
-                  <button
-                    key={cmd.id}
-                    onClick={() => navigate('mes-commandes')}
-                    className="w-full text-left bg-surface hover:bg-surface-container-low p-3.5 rounded-xl border border-surface-container-high flex items-center justify-between transition-colors group"
-                  >
-                    <div className="flex items-center gap-3">
-                      <div className={cn(
-                        'w-10 h-10 rounded-lg flex items-center justify-center border',
-                        cmd.statut === 'livree' ? 'bg-emerald-50 border-emerald-100 text-emerald-600' : 'bg-amber-50 border-amber-100 text-amber-600'
-                      )}>
-                        {cmd.statut === 'livree' ? <CheckCircle size={18} /> : <Clock size={18} />}
-                      </div>
-                      <div>
-                        <p className="font-bold text-sm text-primary">{cmd.reference || `Commande #${cmd.id}`}</p>
-                        <p className="text-[10px] uppercase font-bold text-primary/45 mt-0.5">
-                          {cmd.statut === 'livree' ? 'Livrée' : 'En cours'}
-                        </p>
-                      </div>
-                    </div>
-                    <div className="text-right">
-                      <p className="font-black text-primary text-sm">{cmd.montant_total?.toLocaleString()} FCFA</p>
-                      <div className="flex items-center justify-end gap-1 text-primary/40 mt-1">
-                        <span className="text-[10px] font-semibold">{new Date(cmd.date_commande || Date.now()).toLocaleDateString('fr-FR')}</span>
-                        <ChevronRight size={12} className="group-hover:translate-x-0.5 transition-transform" />
-                      </div>
-                    </div>
-                  </button>
+              <div className="flex-1 space-y-2">
+                {commandes.slice(0, 4).map(cmd => (
+                  <OrderCard key={cmd.id} cmd={cmd} />
                 ))}
-                {filteredCommandes.length === 0 && (
+                {commandes.length === 0 && (
                   <div className="py-10 flex flex-col items-center justify-center text-primary/30">
                     <Package size={40} className="mb-2 opacity-50" />
-                    <p className="text-sm font-bold">Aucune commande trouvée</p>
+                    <p className="text-sm font-bold">Aucune commande pour l'instant</p>
                   </div>
+                )}
+                {commandes.length > 4 && (
+                  <button
+                    onClick={() => setActiveSection('commandes')}
+                    className="w-full py-3 rounded-xl border border-dashed border-surface-container-high text-xs font-bold text-primary/45 hover:text-primary hover:border-primary/30 transition-colors"
+                  >
+                    + {commandes.length - 4} commande(s) supplémentaire(s) — Voir tout
+                  </button>
                 )}
               </div>
             </div>
 
+          </div>
+        )}
+
+        {/* ── COMMANDES TAB ────────────────────────────────────── */}
+        {activeSection === 'commandes' && (
+          <div className="space-y-4">
+            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+              <h2 className="font-headline font-black text-xl text-primary tracking-tight flex items-center gap-2">
+                <Package size={20} className="text-secondary" />
+                Mes Commandes
+                <span className="text-sm font-bold text-primary/40 ml-1">({filteredCommandes.length})</span>
+              </h2>
+              <div className="flex bg-surface-container-low rounded-xl p-0.5 w-full sm:w-auto overflow-x-auto border border-surface-container-high">
+                {(['toutes', 'en_cours', 'terminees'] as const).map(f => (
+                  <button
+                    key={f}
+                    onClick={() => setOrderFilter(f)}
+                    className={cn(
+                      'px-4 py-2 text-xs font-bold rounded-lg transition-all whitespace-nowrap',
+                      orderFilter === f ? 'bg-primary text-white shadow-sm' : 'text-primary/50 hover:text-primary'
+                    )}
+                  >
+                    {f === 'en_cours' ? 'En cours' : f === 'terminees' ? 'Terminées' : 'Toutes'}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              {filteredCommandes.map(cmd => (
+                <OrderCard key={cmd.id} cmd={cmd} showCancel />
+              ))}
+              {filteredCommandes.length === 0 && (
+                <div className="py-16 flex flex-col items-center justify-center text-primary/30 bg-white rounded-2xl border border-surface-container-high">
+                  <Package size={48} className="mb-3 opacity-30" />
+                  <p className="text-base font-bold">Aucune commande trouvée</p>
+                  <p className="text-xs font-semibold mt-1">
+                    {orderFilter !== 'toutes' ? 'Essayez un autre filtre' : 'Vos commandes apparaîtront ici'}
+                  </p>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* ── CATALOGUE TAB (producteur only) ──────────────────── */}
+        {activeSection === 'catalogue' && isProducteur && (
+          <div className="space-y-4">
+            <div className="flex items-center justify-between">
+              <h2 className="font-headline font-black text-xl text-primary tracking-tight flex items-center gap-2">
+                <ClipboardList size={20} className="text-secondary" />
+                Mon Catalogue
+              </h2>
+              <button
+                onClick={() => setIsAjoutProduitOpen(true)}
+                className="flex items-center gap-1.5 px-4 py-2 bg-primary hover:bg-primary-container text-white font-bold rounded-xl text-xs transition-all shadow-sm"
+              >
+                <Plus size={13} strokeWidth={2.5} />
+                Nouveau produit
+              </button>
+            </div>
+            <GestionProduits isEmbedded />
           </div>
         )}
 
@@ -515,7 +633,6 @@ const Accueil = () => {
             {/* Avatar identity card */}
             <div className="bg-white rounded-2xl border border-surface-container-high p-5 shadow-sm">
               <div className="flex flex-col sm:flex-row items-center sm:items-start gap-5">
-                {/* Avatar with camera */}
                 <div className="relative shrink-0">
                   <div
                     className="w-24 h-24 rounded-2xl flex items-center justify-center font-headline font-black text-3xl text-primary shadow-lg border-2 border-yellow-300"
@@ -528,7 +645,6 @@ const Accueil = () => {
                   </button>
                 </div>
 
-                {/* Name, role, contacts */}
                 <div className="flex-1 text-center sm:text-left">
                   <h2 className="font-headline font-black text-2xl text-primary">{formData.nom || user?.nom || 'Utilisateur'}</h2>
                   <span className="inline-flex items-center gap-1 bg-yellow-400/20 text-primary border border-yellow-300/30 px-2 py-0.5 rounded-md text-[10px] font-bold uppercase tracking-wider mt-1">
@@ -563,14 +679,14 @@ const Accueil = () => {
               </div>
             </div>
 
-            {/* Stats (same as dashboard but smaller) */}
+            {/* Stats */}
             <div className="bg-white rounded-2xl border border-surface-container-high p-4 shadow-sm">
               <h3 className="font-headline font-extrabold text-xs mb-3 text-primary/60 uppercase tracking-wider">Mes indicateurs</h3>
               <div className="grid grid-cols-4 gap-2">
                 {[
                   { label: 'Membre', value: '2024', icon: Calendar },
-                  { label: 'Produits', value: String(stats.a || 12), icon: Wheat },
-                  { label: 'Ventes', value: String(stats.b || 48), icon: DollarSign },
+                  { label: 'Produits', value: String(stats.a || 0), icon: Wheat },
+                  { label: 'Ventes', value: String(stats.b || 0), icon: DollarSign },
                   { label: 'Note', value: isProducteur ? `${stats.c.toFixed(1)}/5` : '—', icon: Star },
                 ].map((s, i) => {
                   const Icon = s.icon;
@@ -637,7 +753,6 @@ const Accueil = () => {
                     />
                   </div>
 
-                  {/* Info tip */}
                   <div className="bg-primary/5 border border-primary/10 rounded-2xl p-4 flex gap-3">
                     <div className="w-8 h-8 rounded-full bg-white flex items-center justify-center shrink-0 border border-primary/10">
                       <Info size={14} className="text-primary" />
@@ -702,7 +817,6 @@ const Accueil = () => {
                     </div>
                   </div>
 
-                  {/* Trust banner */}
                   <div className="bg-secondary-container/20 border border-secondary-container/40 rounded-2xl p-4 flex gap-3">
                     <div className="w-8 h-8 rounded-full bg-white flex items-center justify-center shrink-0 border border-secondary-container/30">
                       <Shield size={14} className="text-secondary" />
@@ -722,7 +836,7 @@ const Accueil = () => {
             <div className="bg-white rounded-2xl border border-surface-container-high p-4 shadow-sm">
               <h3 className="font-headline font-bold text-sm text-primary mb-3">Raccourcis rapides</h3>
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-                <button onClick={() => navigate('mes-commandes')} className="flex flex-col p-3 bg-surface hover:bg-primary hover:text-white rounded-xl border border-surface-container-high transition-all group text-left shadow-sm">
+                <button onClick={() => setActiveSection('commandes')} className="flex flex-col p-3 bg-surface hover:bg-primary hover:text-white rounded-xl border border-surface-container-high transition-all group text-left shadow-sm">
                   <Package size={18} className="text-secondary group-hover:text-white mb-2 transition-colors" />
                   <span className="font-bold text-xs">Mes Commandes</span>
                   <span className="text-[10px] opacity-60 mt-0.5">Suivre vos achats</span>
@@ -756,7 +870,6 @@ const Accueil = () => {
         {activeSection === 'settings' && (
           <div className="space-y-4">
 
-            {/* Notifications */}
             <div className="bg-white rounded-2xl border border-surface-container-high p-5 shadow-sm space-y-4">
               <h3 className="font-headline font-bold text-base text-primary">Canaux de notification</h3>
 
@@ -789,7 +902,6 @@ const Accueil = () => {
               </label>
             </div>
 
-            {/* Language */}
             <div className="bg-white rounded-2xl border border-surface-container-high p-5 shadow-sm space-y-3">
               <h3 className="font-headline font-bold text-base text-primary">Langue de l'application</h3>
               <div className="grid grid-cols-2 gap-3">
@@ -816,7 +928,6 @@ const Accueil = () => {
               </div>
             </div>
 
-            {/* Support */}
             <div className="bg-white rounded-2xl border border-surface-container-high p-5 shadow-sm flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
               <div className="flex gap-3">
                 <div className="w-10 h-10 rounded-xl bg-surface border border-surface-container-high flex items-center justify-center shrink-0">
@@ -835,7 +946,6 @@ const Accueil = () => {
               </button>
             </div>
 
-            {/* Logout */}
             <div className="bg-white rounded-2xl border border-red-100 p-4 shadow-sm">
               <button
                 onClick={handleLogout}
@@ -851,24 +961,15 @@ const Accueil = () => {
 
       </main>
 
-      {/* MODALS PRODUCTEUR */}
+      {/* MODAL AJOUT PRODUIT */}
       {isProducteur && (
-        <>
-          <BottomSheet
-            isOpen={isAjoutProduitOpen}
-            onClose={() => setIsAjoutProduitOpen(false)}
-            title="Publier un produit"
-          >
-            <AjoutProduit isEmbedded onFinished={() => setIsAjoutProduitOpen(false)} />
-          </BottomSheet>
-          <BottomSheet
-            isOpen={isGestionProduitsOpen}
-            onClose={() => setIsGestionProduitsOpen(false)}
-            title="Gérer le catalogue"
-          >
-            <GestionProduits isEmbedded />
-          </BottomSheet>
-        </>
+        <BottomSheet
+          isOpen={isAjoutProduitOpen}
+          onClose={() => setIsAjoutProduitOpen(false)}
+          title="Publier un produit"
+        >
+          <AjoutProduit isEmbedded onFinished={() => setIsAjoutProduitOpen(false)} />
+        </BottomSheet>
       )}
 
     </div>

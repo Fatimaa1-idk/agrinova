@@ -209,7 +209,7 @@ export function BotFloatingAssistant() {
         className={cn(
           "fixed right-6 z-50 w-14 h-14 rounded-full flex items-center justify-center shadow-2xl transition-all duration-300 cursor-pointer hover:scale-105 active:scale-95 group",
           // Sits above bottom nav bar (h-16 is approx 64px, bottom-24 is 96px)
-          "bottom-24 ",
+          "bottom-48 ",
           isOpen 
             ? "bg-white text-primary border border-surface-container-high rotate-90 scale-90" 
             : "bg-primary text-white border border-white/10 ring-4 ring-primary/20 animate-pulse-slow"
