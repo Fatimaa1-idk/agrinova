@@ -15,3 +15,7 @@ export type { ToastProps } from './Toast';
 
 export { Navigation } from './Navigation';
 export type { NavigationProps } from './Navigation';
+
+export { BottomSheet } from './BottomSheet';
+
+export { BotFloatingAssistant } from './BotFloatingAssistant';

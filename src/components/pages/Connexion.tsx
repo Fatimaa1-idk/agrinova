@@ -36,7 +36,7 @@ const Connexion = () => {
         localStorage.setItem('agrinova_user', JSON.stringify(data.utilisateur));
         login(data.utilisateur);
         showToast(`Bienvenue ${data.utilisateur.nom} !`);
-        navigate(data.utilisateur.role === 'producteur' ? 'producteur' : 'marketplace');
+        navigate('accueil');
       } else {
         setFormErreur(data.detail || 'Email ou mot de passe incorrect');
       }

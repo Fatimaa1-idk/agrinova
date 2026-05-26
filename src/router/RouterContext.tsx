@@ -2,6 +2,7 @@ import { createContext, useContext, useState, type ReactNode } from 'react';
 
 export type RoutePath =
   | 'onboarding'
+  | 'accueil'
   | 'inscription'
   | 'connexion'
   | 'marketplace'

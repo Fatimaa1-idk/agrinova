@@ -6,6 +6,7 @@ import { AuthLayout } from '../layouts/AuthLayout';
 import { AppLayout } from '../layouts/AppLayout';
 import {
   Onboarding,
+  Accueil,
   Marketplace,
   Inscription,
   Connexion,
@@ -15,10 +16,12 @@ import {
   AjoutProduit,
   Profil,
   ProductDetail,
+  GestionProduits,
 } from '../components/pages';
 
 const pageMap: Record<string, React.ComponentType> = {
   onboarding:       Onboarding,
+  accueil:          Accueil,
   marketplace:      Marketplace,
   inscription:      Inscription,
   connexion:        Connexion,
@@ -28,6 +31,7 @@ const pageMap: Record<string, React.ComponentType> = {
   ajouter:          AjoutProduit,
   profil:           Profil,
   produit:          ProductDetail,
+  'gestion-produits': GestionProduits,
 };
 
 export function Router() {
@@ -44,7 +48,7 @@ export function Router() {
 
     // guest-only: redirect authenticated users to their home
     if (route.guard === 'guest-only' && user) {
-      navigate(user.role === 'producteur' ? 'producteur' : 'marketplace');
+      navigate('accueil');
       return;
     }
 

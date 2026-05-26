@@ -1,4 +1,5 @@
 export { Onboarding } from './Onboarding';
+export { Accueil } from './Accueil';
 export { Marketplace } from './Marketplace';
 export { Inscription } from './Inscription';
 export { Connexion } from './Connexion';
@@ -8,3 +9,6 @@ export { Chat } from './Chat';
 export { AjoutProduit } from './AjoutProduit';
 export { Profil } from './Profil';
 export { ProductDetail } from './ProductDetail';
+export { GestionProduits } from './GestionProduits';
+export { ProductDetail } from './ProductDetail';
+export { GestionProduits } from './GestionProduits';

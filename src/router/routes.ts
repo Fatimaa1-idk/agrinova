@@ -18,7 +18,8 @@ export interface RouteConfig {
 }
 
 export const routes: RouteConfig[] = [
-  { path: 'onboarding',      guard: 'public',     layout: 'app'  },
+  { path: 'onboarding',      guard: 'guest-only', layout: 'app'  },
+  { path: 'accueil',         guard: 'auth',       layout: 'app'  },
   { path: 'inscription',     guard: 'guest-only', layout: 'auth' },
   { path: 'connexion',       guard: 'guest-only', layout: 'auth' },
   { path: 'marketplace',     guard: 'public',     layout: 'app'  },
