@@ -6,7 +6,6 @@ export type RoutePath =
   | 'inscription'
   | 'connexion'
   | 'marketplace'
-  | 'producteur'
   | 'profil'
   | 'chat'
   | 'bot'

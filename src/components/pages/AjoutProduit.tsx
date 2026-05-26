@@ -434,7 +434,7 @@ const AjoutProduit = ({ isEmbedded, onFinished }: { isEmbedded?: boolean; onFini
     <div className="bg-surface min-h-screen pb-32">
       <header className="bg-white border-b border-surface-container px-4 py-4 sticky top-0 z-10">
         <div className="flex items-center gap-3">
-          <button onClick={() => navigate('producteur')} className="p-2 -ml-2 rounded-xl hover:bg-surface-container transition-colors">
+          <button onClick={() => navigate('accueil')} className="p-2 -ml-2 rounded-xl hover:bg-surface-container transition-colors">
             <Icon name="←" size={24} />
           </button>
           <div>

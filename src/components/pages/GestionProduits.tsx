@@ -214,7 +214,7 @@ const GestionProduits = ({ isEmbedded }: { isEmbedded?: boolean }) => {
       <header className="bg-white sticky top-0 z-40 border-b border-surface-container shadow-sm">
         <div className="flex items-center gap-3 px-4 py-3 max-w-2xl mx-auto">
           <button
-            onClick={() => navigate('producteur')}
+            onClick={() => navigate('accueil')}
             className="p-2 -ml-1 rounded-xl hover:bg-surface-container transition-colors text-primary/50 hover:text-primary"
           >
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">

@@ -15,7 +15,6 @@ const Navigation = ({ active, onNavigate, cartItemCount = 0, userRole }: Navigat
     { icon: Home, label: 'Accueil', page: 'accueil' as RoutePath },
     { icon: ShoppingBag, label: 'Marché', page: 'marketplace' as RoutePath },
     { icon: MessageSquare, label: 'Chat', page: 'chat' as RoutePath },
-    { icon: User, label: 'Profil', page: (userRole === 'producteur' ? 'producteur' : 'profil') as RoutePath },
   ];
 
   return (

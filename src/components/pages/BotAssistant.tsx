@@ -197,7 +197,7 @@ const BotAssistant = () => {
         <div className="flex items-center gap-3 px-4 py-3 max-w-2xl mx-auto">
 
           <button
-            onClick={() => navigate(isProducteur ? 'producteur' : 'marketplace')}
+            onClick={() => navigate('accueil')}
             aria-label="Retour"
             className="p-2 -ml-1 rounded-xl hover:bg-surface-container transition-colors text-primary/50 hover:text-primary shrink-0"
           >

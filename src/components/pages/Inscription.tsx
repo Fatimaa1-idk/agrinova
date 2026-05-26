@@ -48,7 +48,7 @@ const Inscription = () => {
         localStorage.setItem('agrinova_user', JSON.stringify(data.utilisateur));
         login(data.utilisateur);
         showToast(`Bienvenue ${data.utilisateur.nom} !`);
-        navigate(formRole === 'producteur' ? 'producteur' : 'marketplace');
+        navigate('accueil');
       } else {
         setFormErreur(data.detail || "Erreur lors de l'inscription");
       }

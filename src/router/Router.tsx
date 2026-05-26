@@ -10,7 +10,6 @@ import {
   Marketplace,
   Inscription,
   Connexion,
-  Producteur,
   BotAssistant,
   Chat,
   AjoutProduit,
@@ -25,7 +24,6 @@ const pageMap: Record<string, React.ComponentType> = {
   marketplace:      Marketplace,
   inscription:      Inscription,
   connexion:        Connexion,
-  producteur:       Producteur,
   bot:              BotAssistant,
   chat:             Chat,
   ajouter:          AjoutProduit,
@@ -67,7 +65,7 @@ export function Router() {
     // acheteur: must have acheteur role
     if (route.guard === 'acheteur') {
       if (!user) { navigate('connexion'); return; }
-      if (user.role !== 'acheteur') { navigate('producteur'); return; }
+      if (user.role !== 'acheteur') { navigate('accueil'); return; }
     }
   }, [currentPath, user]);
 

@@ -141,7 +141,7 @@ const Onboarding = () => {
             <Button
               variant="primary"
               size="lg"
-              onClick={() => navigate(user.role === 'producteur' ? 'producteur' : 'marketplace')}
+              onClick={() => navigate('accueil')}
               className="w-full "
             >
               {user.role === 'producteur' ? (
