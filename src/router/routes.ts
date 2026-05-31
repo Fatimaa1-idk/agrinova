@@ -32,4 +32,5 @@ export const routes: RouteConfig[] = [
   { path: 'gestion-produits',guard: 'producteur', layout: 'app'  },
   { path: 'feed',            guard: 'auth',       layout: 'app'  },
   { path: 'farmer-profile',  guard: 'public',     layout: 'app'  },
+  { path: 'parametres',      guard: 'auth',       layout: 'app'  },
 ];

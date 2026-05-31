@@ -18,6 +18,7 @@ import {
   GestionProduits,
   Feed,
   FarmerProfile,
+  Parametres,
 } from '../components/pages';
 
 const pageMap: Record<string, React.ComponentType> = {
@@ -34,6 +35,7 @@ const pageMap: Record<string, React.ComponentType> = {
   'gestion-produits': GestionProduits,
   feed:              Feed,
   'farmer-profile':  FarmerProfile,
+  parametres:        Parametres,
 };
 
 export function Router() {

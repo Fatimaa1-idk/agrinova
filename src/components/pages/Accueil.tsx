@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { BottomSheet, Input } from '../ui';
+import { BottomSheet } from '../ui';
 import { useAuth } from '../../context/AuthContext';
 import { useToast } from '../../context/ToastContext';
 import { useRouter } from '../../router/RouterContext';
@@ -10,10 +10,10 @@ import { GestionProduits } from './GestionProduits';
 import {
   Volume2, Bell, Sprout, Package, Star, DollarSign,
   ShoppingBag, MessageSquare, Plus, LayoutDashboard,
-  User, ChevronRight, Heart, Wallet, Zap,
-  Sun, ClipboardList, Globe, MapPin,
+  ChevronRight, Heart, Wallet, Zap,
+  Sun, ClipboardList, MapPin,
   Award, ShieldCheck, CheckCircle, Clock,
-  Pencil, Camera, Save, Calendar, Wheat, Settings, HelpCircle, LogOut, Info, Shield, Phone,
+  Wheat,
   X, AlertTriangle,
 } from 'lucide-react';
 
@@ -25,7 +25,7 @@ const LANGUAGES = [
 ];
 
 type Lang = 'FR' | 'WO' | 'PL' | 'EN';
-type Section = 'dashboard' | 'profil' | 'commandes' | 'catalogue' | 'settings';
+type Section = 'dashboard' | 'commandes' | 'catalogue';
 
 const T: Record<Lang, {
   greeting: string;
@@ -85,7 +85,7 @@ const statutConfig: Record<string, { label: string; bg: string; text: string; ic
 };
 
 const Accueil = () => {
-  const { user, logout, updateUser } = useAuth();
+  const { user } = useAuth();
   const { showToast } = useToast();
   const { navigate, routeState } = useRouter();
 
@@ -95,8 +95,6 @@ const Accueil = () => {
     { id: 'dashboard',  label: 'Tableau de bord', icon: LayoutDashboard },
     { id: 'commandes',  label: 'Commandes',        icon: Package },
     ...(isProducteur ? [{ id: 'catalogue' as Section, label: 'Catalogue', icon: ClipboardList }] : []),
-    { id: 'profil',     label: 'Mon Profil',       icon: User },
-    { id: 'settings',   label: 'Paramètres',       icon: Settings },
   ];
 
   // UI state
@@ -113,22 +111,6 @@ const Accueil = () => {
   const [orderFilter, setOrderFilter] = useState<'toutes' | 'en_cours' | 'terminees'>('toutes');
   const [cancelingId, setCancelingId] = useState<number | null>(null);
 
-  // Profile form state
-  const [isEditing, setIsEditing] = useState(false);
-  const [formData, setFormData] = useState({
-    nom: user?.nom || '',
-    email: user?.email || '',
-    localisation: user?.localisation || '',
-    telephone: user?.telephone || '',
-    bio: (user as any)?.bio || '',
-  });
-  const [formErrors, setFormErrors] = useState<Record<string, string>>({});
-  const [profileLoading, setProfileLoading] = useState(false);
-
-  // Settings state
-  const [notifSMS, setNotifSMS] = useState(true);
-  const [notifWhatsApp, setNotifWhatsApp] = useState(true);
-  const [preferredLanguage, setPreferredLanguage] = useState<'fr' | 'wo'>('fr');
 
   const t = T[lang];
   const role = isProducteur ? 'producteur' : 'acheteur';
@@ -137,7 +119,7 @@ const Accueil = () => {
   // Handle tab navigation from routeState
   useEffect(() => {
     const tab = routeState?.tab as string | undefined;
-    if (tab && ['profil', 'settings', 'dashboard', 'commandes', 'catalogue'].includes(tab)) {
+    if (tab && ['dashboard', 'commandes', 'catalogue'].includes(tab)) {
       setActiveSection(tab as Section);
     }
   }, [routeState]);
@@ -207,55 +189,6 @@ const Accueil = () => {
   const statsIcons = isProducteur
     ? [Package, ShoppingBag, Star, DollarSign]
     : [ClipboardList, Heart, Wallet, Zap];
-
-  const handleInputChange = (field: string, value: string) => {
-    setFormData(prev => ({ ...prev, [field]: value }));
-    if (formErrors[field]) setFormErrors(prev => ({ ...prev, [field]: '' }));
-  };
-
-  const validateForm = (): boolean => {
-    const errs: Record<string, string> = {};
-    if (!formData.nom.trim()) errs.nom = 'Le nom est requis';
-    if (!formData.email.trim()) errs.email = "L'email est requis";
-    else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email)) errs.email = 'Email invalide';
-    if (!formData.localisation.trim()) errs.localisation = 'La localisation est requise';
-    setFormErrors(errs);
-    return Object.keys(errs).length === 0;
-  };
-
-  const handleSave = async () => {
-    if (!validateForm()) return;
-    setProfileLoading(true);
-    try {
-      const response = await api('/auth/profile', 'PUT', formData);
-      if (response.success) {
-        updateUser(response.utilisateur ?? formData);
-        showToast('Profil mis à jour avec succès');
-        setIsEditing(false);
-      }
-    } catch (e: any) {
-      showToast(e?.message || 'Erreur lors de la mise à jour');
-    }
-    setProfileLoading(false);
-  };
-
-  const handleCancel = () => {
-    setFormData({
-      nom: user?.nom || '',
-      email: user?.email || '',
-      localisation: user?.localisation || '',
-      telephone: user?.telephone || '',
-      bio: (user as any)?.bio || '',
-    });
-    setFormErrors({});
-    setIsEditing(false);
-  };
-
-  const handleLogout = () => {
-    logout();
-    showToast('Déconnecté avec succès');
-    navigate('onboarding');
-  };
 
   const openBot = () => window.dispatchEvent(new Event('open-agrinova-bot'));
 
@@ -375,7 +308,7 @@ const Accueil = () => {
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 relative z-10">
           <div className="flex items-center gap-4">
             <button
-              onClick={() => setActiveSection('profil')}
+              onClick={() => navigate('profil')}
               className="relative shrink-0 text-left outline-none"
             >
               <div
@@ -621,339 +554,6 @@ const Accueil = () => {
               </button>
             </div>
             <GestionProduits isEmbedded />
-          </div>
-        )}
-
-        {/* ── MON PROFIL TAB ───────────────────────────────────── */}
-        {activeSection === 'profil' && (
-          <div className="space-y-4">
-
-            {/* Avatar identity card */}
-            <div className="bg-white rounded-2xl border border-surface-container-high p-5 shadow-sm">
-              <div className="flex flex-col sm:flex-row items-center sm:items-start gap-5">
-                <div className="relative shrink-0">
-                  <div
-                    className="w-24 h-24 rounded-2xl flex items-center justify-center font-headline font-black text-3xl text-primary shadow-lg border-2 border-yellow-300"
-                    style={{ background: 'linear-gradient(135deg, #F6C844 0%, #E0AB26 100%)' }}
-                  >
-                    {initials.toUpperCase()}
-                  </div>
-                  <button className="absolute -bottom-2 -right-2 bg-white text-primary p-2 rounded-full shadow-md border border-surface-container-high hover:bg-primary hover:text-white transition-all">
-                    <Camera size={14} />
-                  </button>
-                </div>
-
-                <div className="flex-1 text-center sm:text-left">
-                  <h2 className="font-headline font-black text-2xl text-primary">{formData.nom || user?.nom || 'Utilisateur'}</h2>
-                  <span className="inline-flex items-center gap-1 bg-yellow-400/20 text-primary border border-yellow-300/30 px-2 py-0.5 rounded-md text-[10px] font-bold uppercase tracking-wider mt-1">
-                    <Sprout size={10} />
-                    {isProducteur ? 'Producteur Local' : 'Acheteur'}
-                  </span>
-                  <div className="flex flex-wrap items-center justify-center sm:justify-start gap-2 mt-3">
-                    {(formData.localisation || user?.localisation) && (
-                      <span className="inline-flex items-center gap-1 bg-surface text-primary/70 border border-surface-container-high px-2 py-1 rounded-lg text-xs font-semibold">
-                        <MapPin size={11} className="text-secondary" />
-                        {formData.localisation || user?.localisation}
-                      </span>
-                    )}
-                    {(formData.telephone || user?.telephone) && (
-                      <span className="inline-flex items-center gap-1 bg-surface text-primary/70 border border-surface-container-high px-2 py-1 rounded-lg text-xs font-semibold">
-                        <Phone size={11} className="text-secondary" />
-                        {formData.telephone || user?.telephone}
-                      </span>
-                    )}
-                  </div>
-                </div>
-
-                {!isEditing && (
-                  <button
-                    onClick={() => setIsEditing(true)}
-                    className="shrink-0 flex items-center gap-1.5 px-4 py-2 bg-primary/8 hover:bg-primary/15 text-primary rounded-xl font-bold text-xs transition-all self-start"
-                  >
-                    <Pencil size={13} />
-                    Modifier
-                  </button>
-                )}
-              </div>
-            </div>
-
-            {/* Stats */}
-            <div className="bg-white rounded-2xl border border-surface-container-high p-4 shadow-sm">
-              <h3 className="font-headline font-extrabold text-xs mb-3 text-primary/60 uppercase tracking-wider">Mes indicateurs</h3>
-              <div className="grid grid-cols-4 gap-2">
-                {[
-                  { label: 'Membre', value: '2024', icon: Calendar },
-                  { label: 'Produits', value: String(stats.a || 0), icon: Wheat },
-                  { label: 'Ventes', value: String(stats.b || 0), icon: DollarSign },
-                  { label: 'Note', value: isProducteur ? `${stats.c.toFixed(1)}/5` : '—', icon: Star },
-                ].map((s, i) => {
-                  const Icon = s.icon;
-                  return (
-                    <div key={i} className="flex flex-col items-center text-center p-3 bg-surface rounded-xl border border-surface-container-high">
-                      <Icon size={14} className="mb-1.5 text-secondary" />
-                      <p className="font-black text-primary text-base leading-none">{s.value}</p>
-                      <p className="text-[9px] text-primary/45 font-bold uppercase tracking-wider mt-0.5">{s.label}</p>
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-
-            {/* Edit form or view mode */}
-            <div className="bg-white rounded-2xl border border-surface-container-high p-5 shadow-sm">
-              {isEditing ? (
-                <div className="space-y-4">
-                  <h3 className="font-headline font-bold text-base text-primary">Modifier les informations</h3>
-
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                    <Input
-                      label="Nom complet de l'exploitant"
-                      value={formData.nom}
-                      onChange={(e) => handleInputChange('nom', e.target.value)}
-                      error={formErrors.nom}
-                      icon="User"
-                    />
-                    <Input
-                      label="Adresse email"
-                      value={formData.email}
-                      onChange={(e) => handleInputChange('email', e.target.value)}
-                      type="email"
-                      error={formErrors.email}
-                      icon="✉️"
-                    />
-                  </div>
-
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                    <Input
-                      label="Numéro de téléphone"
-                      value={formData.telephone}
-                      onChange={(e) => handleInputChange('telephone', e.target.value)}
-                      placeholder="+221 77 123 45 67"
-                      icon="📞"
-                    />
-                    <Input
-                      label="Zone géographique (Ville/Région)"
-                      value={formData.localisation}
-                      onChange={(e) => handleInputChange('localisation', e.target.value)}
-                      error={formErrors.localisation}
-                      icon="📍"
-                    />
-                  </div>
-
-                  <div className="space-y-1.5">
-                    <label className="block text-sm font-bold text-primary/80">Présentation de l'exploitation (Bio)</label>
-                    <textarea
-                      value={formData.bio}
-                      onChange={(e) => handleInputChange('bio', e.target.value)}
-                      placeholder="Présentez vos types de cultures, votre histoire et votre engagement qualité..."
-                      className="w-full px-4 py-3 border-2 border-surface-container-high bg-surface hover:bg-white focus:border-primary focus:ring-4 focus:ring-primary/10 rounded-2xl outline-none transition-all resize-none font-medium text-primary text-sm"
-                      rows={4}
-                    />
-                  </div>
-
-                  <div className="bg-primary/5 border border-primary/10 rounded-2xl p-4 flex gap-3">
-                    <div className="w-8 h-8 rounded-full bg-white flex items-center justify-center shrink-0 border border-primary/10">
-                      <Info size={14} className="text-primary" />
-                    </div>
-                    <p className="text-xs font-semibold text-primary/65 leading-relaxed">
-                      Une biographie soignée et une localisation précise augmentent vos opportunités de ventes de 35%.
-                    </p>
-                  </div>
-
-                  <div className="flex gap-3 pt-2 border-t border-surface-container-low">
-                    <button
-                      onClick={handleCancel}
-                      disabled={profileLoading}
-                      className="flex-1 py-3 rounded-2xl font-bold text-primary/65 bg-surface-container-low hover:bg-surface-container transition-colors text-sm"
-                    >
-                      Annuler
-                    </button>
-                    <button
-                      onClick={handleSave}
-                      disabled={profileLoading}
-                      className="flex-1 flex items-center justify-center gap-2 py-3 bg-primary text-white font-bold rounded-2xl hover:bg-primary-container transition-colors shadow-md text-sm disabled:opacity-70"
-                    >
-                      <Save size={16} />
-                      {profileLoading ? 'Sauvegarde...' : 'Enregistrer'}
-                    </button>
-                  </div>
-                </div>
-              ) : (
-                <div className="space-y-4">
-                  <h3 className="font-headline font-bold text-base text-primary">Mon histoire & Ferme</h3>
-
-                  <p className="text-sm font-medium text-primary/70 leading-relaxed">
-                    {formData.bio || (user as any)?.bio || "Pas de bio rédigée. Cliquez sur 'Modifier' pour ajouter votre présentation."}
-                  </p>
-
-                  <div className="border-t border-surface-container-high pt-4 grid grid-cols-1 sm:grid-cols-2 gap-4">
-                    <div>
-                      <h4 className="text-[10px] uppercase font-extrabold tracking-wider text-primary/45 mb-2">Détails personnels</h4>
-                      <ul className="space-y-2 text-sm font-semibold">
-                        <li className="flex gap-2">
-                          <span className="text-primary/45 shrink-0">Email :</span>
-                          <span className="text-primary truncate">{formData.email || user?.email}</span>
-                        </li>
-                        <li className="flex gap-2">
-                          <span className="text-primary/45 shrink-0">Tél. :</span>
-                          <span className="text-primary">{formData.telephone || user?.telephone || 'Non renseigné'}</span>
-                        </li>
-                      </ul>
-                    </div>
-                    <div>
-                      <h4 className="text-[10px] uppercase font-extrabold tracking-wider text-primary/45 mb-2">Zone d'activité</h4>
-                      <ul className="space-y-2 text-sm font-semibold">
-                        <li className="flex gap-2">
-                          <span className="text-primary/45 shrink-0">Pays :</span>
-                          <span className="text-primary">Sénégal</span>
-                        </li>
-                        <li className="flex gap-2">
-                          <span className="text-primary/45 shrink-0">Région :</span>
-                          <span className="text-primary">{formData.localisation || user?.localisation || 'Non définie'}</span>
-                        </li>
-                      </ul>
-                    </div>
-                  </div>
-
-                  <div className="bg-secondary-container/20 border border-secondary-container/40 rounded-2xl p-4 flex gap-3">
-                    <div className="w-8 h-8 rounded-full bg-white flex items-center justify-center shrink-0 border border-secondary-container/30">
-                      <Shield size={14} className="text-secondary" />
-                    </div>
-                    <div>
-                      <p className="font-bold text-sm text-primary">Agrinova Confiance & Transparence</p>
-                      <p className="text-xs font-semibold text-primary/65 leading-relaxed mt-0.5">
-                        Vos informations ne sont partagées qu'avec les acheteurs certifiés lors des transactions.
-                      </p>
-                    </div>
-                  </div>
-                </div>
-              )}
-            </div>
-
-            {/* Quick shortcuts */}
-            <div className="bg-white rounded-2xl border border-surface-container-high p-4 shadow-sm">
-              <h3 className="font-headline font-bold text-sm text-primary mb-3">Raccourcis rapides</h3>
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-                <button onClick={() => setActiveSection('commandes')} className="flex flex-col p-3 bg-surface hover:bg-primary hover:text-white rounded-xl border border-surface-container-high transition-all group text-left shadow-sm">
-                  <Package size={18} className="text-secondary group-hover:text-white mb-2 transition-colors" />
-                  <span className="font-bold text-xs">Mes Commandes</span>
-                  <span className="text-[10px] opacity-60 mt-0.5">Suivre vos achats</span>
-                </button>
-                <button onClick={() => navigate('chat')} className="flex flex-col p-3 bg-surface hover:bg-primary hover:text-white rounded-xl border border-surface-container-high transition-all group text-left shadow-sm">
-                  <MessageSquare size={18} className="text-secondary group-hover:text-white mb-2 transition-colors" />
-                  <span className="font-bold text-xs">Messages</span>
-                  <span className="text-[10px] opacity-60 mt-0.5">Vos conversations</span>
-                </button>
-                {isProducteur && (
-                  <>
-                    <button onClick={() => setIsAjoutProduitOpen(true)} className="flex flex-col p-3 bg-surface hover:bg-primary hover:text-white rounded-xl border border-surface-container-high transition-all group text-left shadow-sm">
-                      <Wheat size={18} className="text-secondary group-hover:text-white mb-2 transition-colors" />
-                      <span className="font-bold text-xs">Ajouter Produit</span>
-                      <span className="text-[10px] opacity-60 mt-0.5">Mettre en vente</span>
-                    </button>
-                    <button onClick={openBot} className="flex flex-col p-3 bg-surface hover:bg-primary hover:text-white rounded-xl border border-surface-container-high transition-all group text-left shadow-sm">
-                      <HelpCircle size={18} className="text-secondary group-hover:text-white mb-2 transition-colors" />
-                      <span className="font-bold text-xs">Assistant IA</span>
-                      <span className="text-[10px] opacity-60 mt-0.5">Aide technique</span>
-                    </button>
-                  </>
-                )}
-              </div>
-            </div>
-
-          </div>
-        )}
-
-        {/* ── PARAMÈTRES TAB ───────────────────────────────────── */}
-        {activeSection === 'settings' && (
-          <div className="space-y-4">
-
-            <div className="bg-white rounded-2xl border border-surface-container-high p-5 shadow-sm space-y-4">
-              <h3 className="font-headline font-bold text-base text-primary">Canaux de notification</h3>
-
-              <label className="flex items-center justify-between cursor-pointer p-1">
-                <div>
-                  <p className="font-bold text-sm">Alertes WhatsApp</p>
-                  <p className="text-xs font-semibold text-primary/45">Recevoir un message WhatsApp à chaque nouvelle commande</p>
-                </div>
-                <input
-                  type="checkbox"
-                  checked={notifWhatsApp}
-                  onChange={(e) => setNotifWhatsApp(e.target.checked)}
-                  className="w-5 h-5 accent-primary cursor-pointer"
-                />
-              </label>
-
-              <div className="border-t border-surface-container-low" />
-
-              <label className="flex items-center justify-between cursor-pointer p-1">
-                <div>
-                  <p className="font-bold text-sm">Notifications SMS</p>
-                  <p className="text-xs font-semibold text-primary/45">Notifications directes par SMS en cas de réseau limité (2G)</p>
-                </div>
-                <input
-                  type="checkbox"
-                  checked={notifSMS}
-                  onChange={(e) => setNotifSMS(e.target.checked)}
-                  className="w-5 h-5 accent-primary cursor-pointer"
-                />
-              </label>
-            </div>
-
-            <div className="bg-white rounded-2xl border border-surface-container-high p-5 shadow-sm space-y-3">
-              <h3 className="font-headline font-bold text-base text-primary">Langue de l'application</h3>
-              <div className="grid grid-cols-2 gap-3">
-                <button
-                  onClick={() => setPreferredLanguage('fr')}
-                  className={cn(
-                    'p-4 rounded-2xl font-bold border transition-all text-sm flex items-center justify-between',
-                    preferredLanguage === 'fr' ? 'bg-primary text-white border-primary' : 'bg-white text-primary border-surface-container-high hover:bg-surface-container-low'
-                  )}
-                >
-                  <span>🇫🇷 Français</span>
-                  <Globe size={15} />
-                </button>
-                <button
-                  onClick={() => setPreferredLanguage('wo')}
-                  className={cn(
-                    'p-4 rounded-2xl font-bold border transition-all text-sm flex items-center justify-between',
-                    preferredLanguage === 'wo' ? 'bg-primary text-white border-primary' : 'bg-white text-primary border-surface-container-high hover:bg-surface-container-low'
-                  )}
-                >
-                  <span>🇸🇳 Wolof</span>
-                  <Globe size={15} />
-                </button>
-              </div>
-            </div>
-
-            <div className="bg-white rounded-2xl border border-surface-container-high p-5 shadow-sm flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-              <div className="flex gap-3">
-                <div className="w-10 h-10 rounded-xl bg-surface border border-surface-container-high flex items-center justify-center shrink-0">
-                  <HelpCircle size={18} className="text-primary" />
-                </div>
-                <div>
-                  <p className="font-bold text-sm text-primary">Besoin d'aide technique ?</p>
-                  <p className="text-xs font-semibold text-primary/45 mt-0.5">Notre équipe Agrinova est disponible 7j/7 pour vous aider.</p>
-                </div>
-              </div>
-              <button
-                onClick={openBot}
-                className="px-4 py-2 bg-surface hover:bg-surface-container text-primary font-bold rounded-xl border border-surface-container-high text-xs shrink-0 transition-colors shadow-sm self-start sm:self-auto"
-              >
-                Contacter le support
-              </button>
-            </div>
-
-            <div className="bg-white rounded-2xl border border-red-100 p-4 shadow-sm">
-              <button
-                onClick={handleLogout}
-                className="w-full flex items-center justify-center gap-2.5 py-3.5 text-red-600 font-bold bg-red-50/50 hover:bg-red-50 rounded-xl border border-red-100/60 hover:border-red-200 transition-all text-sm"
-              >
-                <LogOut size={16} strokeWidth={2.5} />
-                Se déconnecter
-              </button>
-            </div>
-
           </div>
         )}
 

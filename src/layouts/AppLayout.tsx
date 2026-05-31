@@ -16,12 +16,8 @@ export function AppLayout({ children }: AppLayoutProps) {
       window.dispatchEvent(new Event('open-agrinova-bot'));
       navigate('accueil');
     }
-    if (currentPath === 'profil') {
-      navigate('accueil', { tab: 'profil' });
-    }
   }, [currentPath, user]);
 
-  // Redirect to connexion on any 401 from the API
   useEffect(() => {
     const handle = () => {
       logout();
@@ -35,6 +31,11 @@ export function AppLayout({ children }: AppLayoutProps) {
     navigate(page, state);
   };
 
+  const handleLogout = () => {
+    logout();
+    navigate('onboarding');
+  };
+
   return (
     <>
       {children}
@@ -45,6 +46,7 @@ export function AppLayout({ children }: AppLayoutProps) {
           <Navigation
             active={currentPath}
             onNavigate={handleNavigation}
+            onLogout={handleLogout}
             userRole={user.role}
           />
         </>

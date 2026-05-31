@@ -1,4 +1,5 @@
-const BASE = import.meta.env.VITE_API_URL || 'http://127.0.0.1:8000/api';
+export const BASE = import.meta.env.VITE_API_URL || 'http://127.0.0.1:8000/api';
+export const BASE_URL = BASE.replace('/api', '');
 
 export class ApiError extends Error {
   constructor(public status: number, message: string) {
