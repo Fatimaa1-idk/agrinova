@@ -119,6 +119,7 @@ const Accueil = () => {
 
   // Producteur modals
   const [isAjoutProduitOpen, setIsAjoutProduitOpen] = useState(false);
+  const [catalogueKey, setCatalogueKey] = useState(0);
 
   // Dashboard data
   const [stats, setStats] = useState({ a: 0, b: 0, c: 0.0, d: 0 });
@@ -568,7 +569,7 @@ const Accueil = () => {
                 Nouveau produit
               </button>
             </div>
-            <GestionProduits isEmbedded />
+            <GestionProduits key={catalogueKey} isEmbedded />
           </div>
         )}
 
@@ -581,7 +582,10 @@ const Accueil = () => {
           onClose={() => setIsAjoutProduitOpen(false)}
           title="Publier un produit"
         >
-          <AjoutProduit isEmbedded onFinished={() => setIsAjoutProduitOpen(false)} />
+          <AjoutProduit isEmbedded onFinished={() => {
+            setIsAjoutProduitOpen(false);
+            setCatalogueKey(k => k + 1);
+          }} />
         </BottomSheet>
       )}
 

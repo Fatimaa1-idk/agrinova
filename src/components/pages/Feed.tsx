@@ -4,12 +4,12 @@ import { useToast } from '../../context/ToastContext';
 import { useRouter } from '../../router/RouterContext';
 import {
   getFeed, creerPost, supprimerPost, toggleLike,
-  getCommentaires, ajouterCommentaire,
+  getCommentaires, ajouterCommentaire, BASE_URL,
 } from '../../services/api';
 import { cn } from '../../lib/utils';
 import {
   Heart, MessageCircle, Trash2, Send, ImageIcon,
-  MapPin, ShieldCheck, Sprout, X, ChevronDown,
+  ShieldCheck, Sprout, X, ChevronDown,
   Loader2, Plus,
 } from 'lucide-react';
 
@@ -265,15 +265,57 @@ function CreatePostModal({
   onCreated: (post: PostData) => void;
   user: { nom: string; photo_profil?: string };
 }) {
+  const { showToast } = useToast();
   const [contenu, setContenu] = useState('');
+  const [photoPreview, setPhotoPreview] = useState('');
   const [photoUrl, setPhotoUrl] = useState('');
-  const [showPhotoInput, setShowPhotoInput] = useState(false);
+  const [uploadingPhoto, setUploadingPhoto] = useState(false);
+  const [photoError, setPhotoError] = useState(false);
   const [loading, setLoading] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     textareaRef.current?.focus();
   }, []);
+
+  const handlePhotoChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (file.size > 10 * 1024 * 1024) { showToast('La photo ne doit pas dépasser 10 Mo'); return; }
+
+    setPhotoError(false);
+    const reader = new FileReader();
+    reader.onloadend = () => setPhotoPreview(reader.result as string);
+    reader.readAsDataURL(file);
+
+    setUploadingPhoto(true);
+    try {
+      const fd = new FormData();
+      fd.append('file', file);
+      const token = localStorage.getItem('agrinova_token');
+      const res = await fetch(`${BASE_URL}/api/upload/image`, {
+        method: 'POST',
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+        body: fd,
+      });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const data = await res.json();
+      setPhotoUrl(data.url);
+    } catch (err: any) {
+      setPhotoError(true);
+      showToast(`Échec upload : ${err?.message || 'erreur réseau'}`);
+    } finally {
+      setUploadingPhoto(false);
+    }
+  };
+
+  const removePhoto = () => {
+    setPhotoPreview('');
+    setPhotoUrl('');
+    setPhotoError(false);
+    if (fileInputRef.current) fileInputRef.current.value = '';
+  };
 
   const handleSubmit = async () => {
     if (!contenu.trim()) return;
@@ -283,13 +325,13 @@ function CreatePostModal({
       if (res?.post) onCreated(res.post);
       onClose();
     } catch {
-      // ignore
+      showToast('Erreur lors de la publication');
     }
     setLoading(false);
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center">
+    <div className="fixed inset-0 z-[60] flex items-end sm:items-center justify-center">
       <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={onClose} />
       <div className="relative w-full max-w-lg bg-white rounded-t-3xl sm:rounded-3xl shadow-2xl z-10">
 
@@ -322,47 +364,73 @@ function CreatePostModal({
           />
         </div>
 
-        {/* Photo URL input */}
-        {showPhotoInput && (
+        {/* Photo preview */}
+        {photoPreview && (
           <div className="px-5 pb-3">
-            <div className="flex items-center gap-2 bg-surface border border-surface-container-high rounded-xl px-3 py-2">
-              <ImageIcon size={14} className="text-primary/40 shrink-0" />
-              <input
-                value={photoUrl}
-                onChange={e => setPhotoUrl(e.target.value)}
-                placeholder="URL de l'image (https://...)"
-                className="flex-1 bg-transparent outline-none text-xs font-medium text-primary placeholder:text-primary/35"
+            <div className={cn(
+              'relative rounded-2xl overflow-hidden border-2',
+              photoError ? 'border-red-400' : 'border-surface-container-high'
+            )}>
+              <img
+                src={photoPreview}
+                alt="Preview"
+                className={cn('w-full object-cover max-h-52', photoError && 'opacity-50')}
               />
-              {photoUrl && (
-                <button onClick={() => setPhotoUrl('')} className="text-primary/40 hover:text-red-500">
-                  <X size={13} />
-                </button>
+              {uploadingPhoto && (
+                <div className="absolute inset-0 bg-black/40 flex flex-col items-center justify-center gap-2">
+                  <div className="w-6 h-6 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                  <span className="text-white text-[10px] font-bold">Envoi en cours…</span>
+                </div>
               )}
+              {photoError && !uploadingPhoto && (
+                <div className="absolute inset-0 bg-red-500/15 flex items-center justify-center">
+                  <span className="bg-white/90 text-red-700 text-xs font-black px-3 py-1.5 rounded-full shadow-sm">
+                    ✕ Échec — toucher "Changer" pour réessayer
+                  </span>
+                </div>
+              )}
+              {photoUrl && !uploadingPhoto && !photoError && (
+                <span className="absolute bottom-2 left-2 bg-emerald-500 text-white text-[9px] font-bold px-2 py-0.5 rounded-full">
+                  ✓ Prête
+                </span>
+              )}
+              <button
+                onClick={removePhoto}
+                className="absolute top-2 right-2 bg-white/90 text-red-500 p-1.5 rounded-lg shadow-sm"
+              >
+                <X size={14} />
+              </button>
             </div>
-            {photoUrl && (
-              <img src={photoUrl} alt="Preview" className="mt-2 w-full rounded-xl object-cover max-h-40 border border-surface-container-high" onError={() => setPhotoUrl('')} />
-            )}
           </div>
         )}
+
+        {/* Hidden file input */}
+        <input
+          ref={fileInputRef}
+          type="file"
+          accept="image/*"
+          onChange={handlePhotoChange}
+          className="sr-only"
+        />
 
         {/* Footer */}
         <div className="flex items-center justify-between px-5 pb-5 pt-2 border-t border-surface-container-high">
           <button
-            onClick={() => setShowPhotoInput(v => !v)}
+            onClick={() => fileInputRef.current?.click()}
             className={cn(
               'flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold transition-all border',
-              showPhotoInput
+              photoPreview
                 ? 'bg-primary/5 text-primary border-primary/20'
                 : 'bg-surface text-primary/50 border-surface-container-high hover:text-primary hover:bg-primary/5'
             )}
           >
             <ImageIcon size={14} />
-            Photo
+            {photoPreview ? 'Changer' : 'Photo'}
           </button>
 
           <button
             onClick={handleSubmit}
-            disabled={!contenu.trim() || loading}
+            disabled={!contenu.trim() || loading || uploadingPhoto}
             className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-primary text-white font-bold text-sm disabled:opacity-50 transition-all shadow-sm"
           >
             {loading ? <Loader2 size={15} className="animate-spin" /> : <Send size={15} />}
