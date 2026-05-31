@@ -24,6 +24,7 @@ export async function api(endpoint: string, method = 'GET', body?: object): Prom
     if (res.status === 401) {
       localStorage.removeItem('agrinova_token');
       localStorage.removeItem('agrinova_user');
+      window.dispatchEvent(new CustomEvent('agrinova-unauthorized'));
     }
     throw new ApiError(res.status, message);
   }
