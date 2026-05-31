@@ -1,9 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import { cn } from '../../lib/utils';
-import { Icon } from '../ui';
+import { ZonePicker } from '../ui/ZonePicker';
 import { useToast } from '../../context/ToastContext';
 import { useRouter } from '../../router/RouterContext';
-import { api } from '../../services/api';
+import { api, BASE_URL } from '../../services/api';
+import {
+  X, Eye, EyeOff, Trash2, CheckCircle, Image as ImageIcon,
+  Leaf, Apple, Wheat, Sprout, DollarSign, Package, ChevronDown,
+} from 'lucide-react';
 
 interface Produit {
   id: number;
@@ -26,6 +30,317 @@ const categoryIcons: Record<string, string> = {
   Légumineuses: '🥜',
 };
 
+const categories = [
+  { value: 'Légumes',      label: 'Légumes',  icon: Leaf   },
+  { value: 'Fruits',       label: 'Fruits',   icon: Apple  },
+  { value: 'Céréales',     label: 'Céréales', icon: Wheat  },
+  { value: 'Légumineuses', label: 'Légumi.',  icon: Sprout },
+];
+
+/* ── PRODUCT ADMIN MODAL ─────────────────────────────────────────── */
+interface AdminModalProps {
+  produit: Produit;
+  onClose: () => void;
+  onSaved: (updated: Produit) => void;
+  onDeleted: (id: number) => void;
+}
+
+const ProduitAdminModal = ({ produit, onClose, onSaved, onDeleted }: AdminModalProps) => {
+  const { showToast } = useToast();
+
+  const [form, setForm] = useState({
+    nom: produit.nom,
+    description: produit.description || '',
+    prix: String(produit.prix),
+    quantite_disponible: String(produit.quantite_disponible),
+    localisation: produit.localisation || '',
+    categorie: produit.categorie,
+    est_disponible: produit.est_disponible,
+    photoUrl: produit.photo || '',
+    photoPreview: produit.photo || '',
+  });
+  const [errors, setErrors] = useState<Record<string, string>>({});
+  const [saving, setSaving] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+  const [confirmDelete, setConfirmDelete] = useState(false);
+  const [uploadingPhoto, setUploadingPhoto] = useState(false);
+
+  const set = (field: string, value: string | boolean) => {
+    setForm(prev => ({ ...prev, [field]: value }));
+    if (errors[field]) setErrors(prev => ({ ...prev, [field]: '' }));
+  };
+
+  const handlePhotoChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (file.size > 10 * 1024 * 1024) { showToast('La photo ne doit pas dépasser 10 Mo'); return; }
+
+    const reader = new FileReader();
+    reader.onloadend = () => setForm(prev => ({ ...prev, photoPreview: reader.result as string }));
+    reader.readAsDataURL(file);
+
+    setUploadingPhoto(true);
+    try {
+      const fd = new FormData();
+      fd.append('file', file);
+      const token = localStorage.getItem('agrinova_token');
+      const res = await fetch(`${BASE_URL}/api/upload/image`, {
+        method: 'POST',
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+        body: fd,
+      });
+      if (!res.ok) throw new Error('Upload échoué');
+      const data = await res.json();
+      setForm(prev => ({ ...prev, photoUrl: data.url }));
+      showToast('Photo mise à jour');
+    } catch {
+      showToast('Erreur upload — ancienne photo conservée');
+    } finally {
+      setUploadingPhoto(false);
+    }
+  };
+
+  const validate = () => {
+    const e: Record<string, string> = {};
+    if (!form.nom.trim()) e.nom = 'Requis';
+    if (!form.prix || parseFloat(form.prix) <= 0) e.prix = 'Requis';
+    if (!form.quantite_disponible || parseInt(form.quantite_disponible) <= 0) e.quantite_disponible = 'Requis';
+    if (!form.localisation.trim()) e.localisation = 'Requis';
+    setErrors(e);
+    return Object.keys(e).length === 0;
+  };
+
+  const handleSave = async () => {
+    if (!validate()) return;
+    setSaving(true);
+    try {
+      const updated = await api(`/produits/${produit.id}`, 'PUT', {
+        nom: form.nom,
+        description: form.description,
+        prix: parseFloat(form.prix),
+        unite: produit.unite,
+        quantite_disponible: parseInt(form.quantite_disponible),
+        categorie: form.categorie,
+        photo: form.photoUrl || undefined,
+        localisation: form.localisation,
+        est_disponible: form.est_disponible,
+      });
+      onSaved({ ...produit, ...updated, est_disponible: form.est_disponible });
+      showToast('Produit mis à jour');
+      onClose();
+    } catch (e: any) {
+      showToast(e?.message || 'Erreur lors de la mise à jour');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleDelete = async () => {
+    setDeleting(true);
+    try {
+      await api(`/produits/${produit.id}`, 'DELETE');
+      onDeleted(produit.id);
+      showToast('Produit supprimé');
+      onClose();
+    } catch (e: any) {
+      showToast(e?.message || 'Erreur lors de la suppression');
+    } finally {
+      setDeleting(false);
+      setConfirmDelete(false);
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex flex-col" style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}>
+      {/* Backdrop */}
+      <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={onClose} />
+
+      {/* Sheet */}
+      <div className="relative mt-auto bg-white rounded-t-3xl shadow-2xl max-h-[92vh] flex flex-col">
+        {/* Drag handle */}
+        <div className="flex justify-center pt-3 pb-1 shrink-0">
+          <div className="w-10 h-1 bg-black/10 rounded-full" />
+        </div>
+
+        {/* Header */}
+        <div className="flex items-center justify-between px-4 pb-3 border-b border-surface-container shrink-0">
+          <div className="flex items-center gap-2.5">
+            <div className="w-9 h-9 rounded-xl bg-surface-container flex items-center justify-center overflow-hidden shrink-0">
+              {form.photoPreview
+                ? <img src={form.photoPreview} alt="" className="w-full h-full object-cover" />
+                : <span className="text-lg">{categoryIcons[form.categorie] || '🌾'}</span>
+              }
+            </div>
+            <div>
+              <h2 className="font-black text-primary text-sm leading-tight truncate max-w-[200px]">{produit.nom}</h2>
+              <p className="text-[10px] text-secondary font-semibold">{produit.categorie} · {produit.prix.toLocaleString()} FCFA</p>
+            </div>
+          </div>
+          <button onClick={onClose} className="w-8 h-8 rounded-full bg-surface-container flex items-center justify-center text-secondary hover:text-primary transition-colors">
+            <X size={16} />
+          </button>
+        </div>
+
+        {/* Scrollable content */}
+        <div className="overflow-y-auto flex-1 px-4 py-4 space-y-4">
+
+          {/* Photo */}
+          <div>
+            <p className="text-xs font-bold text-primary/60 uppercase tracking-wider mb-1.5">Photo</p>
+            {form.photoPreview ? (
+              <div className="relative h-36 rounded-2xl overflow-hidden border border-surface-container">
+                <img src={form.photoPreview} alt="Preview" className="w-full h-full object-cover" />
+                {uploadingPhoto && (
+                  <div className="absolute inset-0 bg-black/40 flex items-center justify-center">
+                    <div className="w-6 h-6 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                  </div>
+                )}
+                <label className="absolute inset-0 cursor-pointer">
+                  <input type="file" accept="image/*" onChange={handlePhotoChange} className="sr-only" />
+                </label>
+                <span className="absolute bottom-2 left-2 bg-black/50 text-white text-[9px] font-bold px-2 py-0.5 rounded-full pointer-events-none">
+                  Toucher pour changer
+                </span>
+              </div>
+            ) : (
+              <div className="relative">
+                <input type="file" accept="image/*" onChange={handlePhotoChange} className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10" />
+                <div className="border-2 border-dashed border-primary/20 rounded-2xl py-6 flex flex-col items-center gap-2 bg-primary/3">
+                  <ImageIcon size={22} className="text-primary/40" />
+                  <p className="text-xs font-semibold text-primary/50">Ajouter une photo</p>
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* Catégorie */}
+          <div>
+            <p className="text-xs font-bold text-primary/60 uppercase tracking-wider mb-2">Catégorie</p>
+            <div className="grid grid-cols-4 gap-2">
+              {categories.map(({ value, label, icon: CatIcon }) => {
+                const sel = form.categorie === value;
+                return (
+                  <button key={value} onClick={() => set('categorie', value)}
+                    className={cn('py-2.5 rounded-xl border-2 flex flex-col items-center gap-1.5 transition-all',
+                      sel ? 'border-primary bg-primary/5 text-primary' : 'border-surface-container bg-white text-secondary hover:border-primary/30')}>
+                    <CatIcon size={18} strokeWidth={sel ? 2.5 : 2} />
+                    <span className="text-[10px] font-bold leading-none">{label}</span>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* Nom */}
+          <div>
+            <label className="block text-xs font-bold text-primary/60 uppercase tracking-wider mb-1.5">Nom du produit</label>
+            <input value={form.nom} onChange={e => set('nom', e.target.value)}
+              className={cn('w-full px-3 py-2.5 rounded-xl border-2 text-sm font-medium outline-none transition-all',
+                errors.nom ? 'border-red-400 bg-red-50' : 'border-surface-container bg-white text-primary focus:border-primary/40')} />
+            {errors.nom && <p className="text-xs text-red-500 font-bold mt-1">{errors.nom}</p>}
+          </div>
+
+          {/* Description */}
+          <div>
+            <label className="block text-xs font-bold text-primary/60 uppercase tracking-wider mb-1.5">Description</label>
+            <textarea value={form.description} onChange={e => set('description', e.target.value)} rows={2}
+              className="w-full px-3 py-2.5 rounded-xl border-2 border-surface-container bg-white text-primary text-sm font-medium outline-none resize-none focus:border-primary/40 transition-all" />
+          </div>
+
+          {/* Prix + Stock */}
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block text-xs font-bold text-primary/60 uppercase tracking-wider mb-1.5">
+                <DollarSign size={10} className="inline mr-1" />Prix (FCFA)
+              </label>
+              <input type="number" value={form.prix} onChange={e => set('prix', e.target.value)}
+                className={cn('w-full px-3 py-2.5 rounded-xl border-2 text-sm font-medium outline-none transition-all',
+                  errors.prix ? 'border-red-400 bg-red-50' : 'border-surface-container bg-white text-primary focus:border-primary/40')} />
+              {errors.prix && <p className="text-xs text-red-500 font-bold mt-1">{errors.prix}</p>}
+            </div>
+            <div>
+              <label className="block text-xs font-bold text-primary/60 uppercase tracking-wider mb-1.5">
+                <Package size={10} className="inline mr-1" />Stock (kg)
+              </label>
+              <input type="number" value={form.quantite_disponible} onChange={e => set('quantite_disponible', e.target.value)}
+                className={cn('w-full px-3 py-2.5 rounded-xl border-2 text-sm font-medium outline-none transition-all',
+                  errors.quantite_disponible ? 'border-red-400 bg-red-50' : 'border-surface-container bg-white text-primary focus:border-primary/40')} />
+              {errors.quantite_disponible && <p className="text-xs text-red-500 font-bold mt-1">{errors.quantite_disponible}</p>}
+            </div>
+          </div>
+
+          {/* Zone */}
+          <ZonePicker value={form.localisation} onChange={val => set('localisation', val)} error={errors.localisation} required />
+
+          {/* Publication toggle */}
+          <button
+            type="button"
+            onClick={() => set('est_disponible', !form.est_disponible)}
+            className={cn(
+              'w-full flex items-center gap-3 p-3.5 rounded-2xl border-2 transition-all',
+              form.est_disponible ? 'border-emerald-200 bg-emerald-50' : 'border-surface-container bg-white hover:border-primary/20'
+            )}
+          >
+            <div className={cn('w-8 h-8 rounded-full flex items-center justify-center shrink-0', form.est_disponible ? 'bg-emerald-500 text-white' : 'bg-surface-container text-secondary')}>
+              {form.est_disponible ? <Eye size={14} /> : <EyeOff size={14} />}
+            </div>
+            <div className="flex-1 text-left">
+              <p className={cn('font-bold text-sm', form.est_disponible ? 'text-emerald-800' : 'text-primary')}>
+                {form.est_disponible ? 'Visible sur le marché' : 'Masqué du marché'}
+              </p>
+              <p className="text-[10px] text-primary/45 font-medium mt-0.5">
+                {form.est_disponible ? 'Les acheteurs peuvent voir ce produit' : 'Activez pour remettre en vente'}
+              </p>
+            </div>
+            <div className={cn('w-5 h-5 rounded-full border-2 flex items-center justify-center shrink-0', form.est_disponible ? 'bg-emerald-500 border-emerald-500' : 'border-surface-container-high')}>
+              {form.est_disponible && <CheckCircle size={12} className="text-white" fill="white" />}
+            </div>
+          </button>
+
+          {/* Delete zone */}
+          <div className="border border-red-100 rounded-2xl overflow-hidden">
+            {confirmDelete ? (
+              <div className="p-4 bg-red-50 space-y-3">
+                <p className="text-sm font-bold text-red-700 text-center">Supprimer ce produit définitivement ?</p>
+                <div className="flex gap-2">
+                  <button onClick={() => setConfirmDelete(false)}
+                    className="flex-1 py-2.5 rounded-xl border border-surface-container-high text-sm font-bold text-secondary bg-white hover:bg-surface-container transition-colors">
+                    Annuler
+                  </button>
+                  <button onClick={handleDelete} disabled={deleting}
+                    className="flex-1 py-2.5 rounded-xl bg-red-600 text-white text-sm font-bold hover:bg-red-700 transition-colors disabled:opacity-70">
+                    {deleting ? 'Suppression...' : 'Confirmer'}
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <button onClick={() => setConfirmDelete(true)}
+                className="w-full flex items-center justify-center gap-2 py-3.5 text-red-500 font-bold text-sm hover:bg-red-50 transition-colors">
+                <Trash2 size={15} />
+                Supprimer ce produit
+              </button>
+            )}
+          </div>
+
+        </div>
+
+        {/* Footer save button */}
+        <div className="px-4 py-4 border-t border-surface-container bg-white shrink-0">
+          <button onClick={handleSave} disabled={saving || uploadingPhoto}
+            className="w-full flex items-center justify-center gap-2 py-4 rounded-2xl font-black text-white text-sm shadow-md disabled:opacity-70 transition-all active:scale-95"
+            style={{ background: 'linear-gradient(135deg, #012d1d 0%, #1b4332 100%)' }}>
+            {saving
+              ? <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+              : <><CheckCircle size={18} strokeWidth={2.5} />Enregistrer les modifications</>
+            }
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+/* ── GESTION PRODUITS ────────────────────────────────────────────── */
 const GestionProduits = ({ isEmbedded }: { isEmbedded?: boolean }) => {
   const { showToast } = useToast();
   const { navigate } = useRouter();
@@ -36,6 +351,7 @@ const GestionProduits = ({ isEmbedded }: { isEmbedded?: boolean }) => {
   const [deleting, setDeleting] = useState<number | null>(null);
   const [confirmDelete, setConfirmDelete] = useState<number | null>(null);
   const [filter, setFilter] = useState<'tous' | 'disponible' | 'indisponible'>('tous');
+  const [selectedProduit, setSelectedProduit] = useState<Produit | null>(null);
 
   const loadProduits = async () => {
     try {
@@ -106,103 +422,100 @@ const GestionProduits = ({ isEmbedded }: { isEmbedded?: boolean }) => {
   /* ── EMBEDDED: compact dense list ──────────────────────────────── */
   if (isEmbedded) {
     return (
-      <div className="px-3 py-3 space-y-3">
-        {/* Stats strip */}
-        <div className="grid grid-cols-3 gap-2">
-          {[
-            { label: 'Total', value: stats.total, bg: 'bg-primary/5 text-primary' },
-            { label: 'En vente', value: stats.disponibles, bg: 'bg-emerald-50 text-emerald-700' },
-            { label: 'Stock kg', value: stats.stock, bg: 'bg-surface-container text-secondary' },
-          ].map(s => (
-            <div key={s.label} className={cn('rounded-xl px-3 py-2 text-center', s.bg)}>
-              <p className="text-base font-black leading-none">{s.value}</p>
-              <p className="text-[10px] font-semibold mt-0.5 opacity-70">{s.label}</p>
-            </div>
-          ))}
-        </div>
-
-        {/* Filter tabs */}
-        <div className="flex gap-1.5">
-          {(['tous', 'disponible', 'indisponible'] as const).map(f => (
-            <button key={f} onClick={() => setFilter(f)}
-              className={cn('px-3 py-1 rounded-full text-[11px] font-bold border transition-all',
-                filter === f ? 'bg-primary text-white border-primary' : 'bg-white text-secondary border-surface-container hover:border-primary/30')}>
-              {f === 'tous' ? 'Tous' : f === 'disponible' ? 'En vente' : 'Masqués'}
-            </button>
-          ))}
-        </div>
-
-        {/* Product rows */}
-        {loading ? (
-          <div className="space-y-2 animate-pulse">
-            {[1, 2, 3].map(i => (
-              <div key={i} className="h-14 bg-surface-container rounded-xl" />
-            ))}
-          </div>
-        ) : filtered.length === 0 ? (
-          <div className="text-center py-10">
-            <span className="text-4xl">🌾</span>
-            <p className="text-sm font-semibold text-secondary mt-3">
-              {filter === 'tous' ? 'Aucun produit publié' : 'Aucun dans cette catégorie'}
-            </p>
-          </div>
-        ) : (
-          <div className="space-y-2">
-            {filtered.map(produit => (
-              <div key={produit.id}
-                className={cn('bg-white rounded-xl border overflow-hidden transition-all',
-                  produit.est_disponible ? 'border-surface-container' : 'border-surface-container opacity-65')}>
-                {/* Row */}
-                <div className="flex items-center gap-2.5 px-3 py-2.5">
-                  {/* Thumbnail */}
-                  <div className="w-10 h-10 rounded-lg bg-surface-container flex items-center justify-center shrink-0 overflow-hidden">
-                    {produit.photo
-                      ? <img src={produit.photo} alt={produit.nom} className="w-full h-full object-cover" />
-                      : <span className="text-lg">{categoryIcons[produit.categorie] || '🌾'}</span>
-                    }
-                  </div>
-                  {/* Info */}
-                  <div className="flex-1 min-w-0">
-                    <p className="font-bold text-primary text-sm truncate leading-tight">{produit.nom}</p>
-                    <p className="text-xs text-secondary font-medium">{produit.prix.toLocaleString()} FCFA · {produit.quantite_disponible} kg</p>
-                  </div>
-                  {/* Badge + actions */}
-                  <div className="flex items-center gap-1.5 shrink-0">
-                    <span className={cn('text-[10px] font-bold px-2 py-0.5 rounded-full',
-                      produit.est_disponible ? 'bg-emerald-50 text-emerald-700' : 'bg-surface-container text-secondary')}>
-                      {produit.est_disponible ? '● Vente' : '○ Masqué'}
-                    </span>
-                    {/* Toggle */}
-                    <button onClick={() => toggleDisponibilite(produit)} disabled={toggling === produit.id}
-                      className="w-7 h-7 rounded-lg bg-surface-container flex items-center justify-center text-secondary hover:bg-primary/10 hover:text-primary transition-colors">
-                      {toggling === produit.id
-                        ? <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="animate-spin"><path d="M3 12a9 9 0 1 0 9-9"/></svg>
-                        : produit.est_disponible
-                          ? <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94"/><path d="M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19"/><line x1="1" y1="1" x2="23" y2="23"/></svg>
-                          : <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
-                      }
-                    </button>
-                    {/* Delete */}
-                    {confirmDelete === produit.id ? (
-                      <>
-                        <button onClick={() => setConfirmDelete(null)}
-                          className="w-7 h-7 rounded-lg bg-surface-container flex items-center justify-center text-secondary text-xs font-bold">✕</button>
-                        <button onClick={() => supprimerProduit(produit.id)} disabled={deleting === produit.id}
-                          className="w-7 h-7 rounded-lg bg-red-100 flex items-center justify-center text-red-600 text-xs font-bold">✓</button>
-                      </>
-                    ) : (
-                      <button onClick={() => setConfirmDelete(produit.id)}
-                        className="w-7 h-7 rounded-lg bg-surface-container flex items-center justify-center text-red-400 hover:bg-red-50 hover:text-red-600 transition-colors">
-                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg>
-                      </button>
-                    )}
-                  </div>
-                </div>
+      <>
+        <div className="px-3 py-3 space-y-3">
+          {/* Stats strip */}
+          <div className="grid grid-cols-3 gap-2">
+            {[
+              { label: 'Total', value: stats.total, bg: 'bg-primary/5 text-primary' },
+              { label: 'En vente', value: stats.disponibles, bg: 'bg-emerald-50 text-emerald-700' },
+              { label: 'Stock kg', value: stats.stock, bg: 'bg-surface-container text-secondary' },
+            ].map(s => (
+              <div key={s.label} className={cn('rounded-xl px-3 py-2 text-center', s.bg)}>
+                <p className="text-base font-black leading-none">{s.value}</p>
+                <p className="text-[10px] font-semibold mt-0.5 opacity-70">{s.label}</p>
               </div>
             ))}
           </div>
+
+          {/* Filter tabs */}
+          <div className="flex gap-1.5">
+            {(['tous', 'disponible', 'indisponible'] as const).map(f => (
+              <button key={f} onClick={() => setFilter(f)}
+                className={cn('px-3 py-1 rounded-full text-[11px] font-bold border transition-all',
+                  filter === f ? 'bg-primary text-white border-primary' : 'bg-white text-secondary border-surface-container hover:border-primary/30')}>
+                {f === 'tous' ? 'Tous' : f === 'disponible' ? 'En vente' : 'Masqués'}
+              </button>
+            ))}
+          </div>
+
+          {/* Product rows */}
+          {loading ? (
+            <div className="space-y-2 animate-pulse">
+              {[1, 2, 3].map(i => (
+                <div key={i} className="h-14 bg-surface-container rounded-xl" />
+              ))}
+            </div>
+          ) : filtered.length === 0 ? (
+            <div className="text-center py-10">
+              <span className="text-4xl">🌾</span>
+              <p className="text-sm font-semibold text-secondary mt-3">
+                {filter === 'tous' ? 'Aucun produit publié' : 'Aucun dans cette catégorie'}
+              </p>
+            </div>
+          ) : (
+            <div className="space-y-2">
+              {filtered.map(produit => (
+                <button
+                  key={produit.id}
+                  onClick={() => setSelectedProduit(produit)}
+                  className={cn('w-full bg-white rounded-xl border overflow-hidden transition-all text-left hover:border-primary/30 hover:shadow-sm active:scale-[0.99]',
+                    produit.est_disponible ? 'border-surface-container' : 'border-surface-container opacity-65')}
+                >
+                  <div className="flex items-center gap-2.5 px-3 py-2.5">
+                    {/* Thumbnail */}
+                    <div className="w-10 h-10 rounded-lg bg-surface-container flex items-center justify-center shrink-0 overflow-hidden">
+                      {produit.photo
+                        ? <img src={produit.photo} alt={produit.nom} className="w-full h-full object-cover" />
+                        : <span className="text-lg">{categoryIcons[produit.categorie] || '🌾'}</span>
+                      }
+                    </div>
+                    {/* Info */}
+                    <div className="flex-1 min-w-0">
+                      <p className="font-bold text-primary text-sm truncate leading-tight">{produit.nom}</p>
+                      <p className="text-xs text-secondary font-medium">{produit.prix.toLocaleString()} FCFA · {produit.quantite_disponible} kg</p>
+                    </div>
+                    {/* Badge + chevron */}
+                    <div className="flex items-center gap-1.5 shrink-0">
+                      <span className={cn('text-[10px] font-bold px-2 py-0.5 rounded-full',
+                        produit.est_disponible ? 'bg-emerald-50 text-emerald-700' : 'bg-surface-container text-secondary')}>
+                        {produit.est_disponible ? '● Vente' : '○ Masqué'}
+                      </span>
+                      <ChevronDown size={14} className="text-primary/30 -rotate-90" />
+                    </div>
+                  </div>
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+
+        {/* Admin modal */}
+        {selectedProduit && (
+          <ProduitAdminModal
+            produit={selectedProduit}
+            onClose={() => setSelectedProduit(null)}
+            onSaved={(updated) => {
+              setProduits(prev => prev.map(p => p.id === updated.id ? updated : p));
+              setSelectedProduit(null);
+            }}
+            onDeleted={(id) => {
+              setProduits(prev => prev.filter(p => p.id !== id));
+              setSelectedProduit(null);
+            }}
+          />
         )}
-      </div>
+      </>
     );
   }
 
@@ -225,15 +538,6 @@ const GestionProduits = ({ isEmbedded }: { isEmbedded?: boolean }) => {
             <h1 className="font-bold text-primary text-base leading-tight">Mes produits</h1>
             <p className="text-xs text-primary/40">{stats.total} produit{stats.total > 1 ? 's' : ''} publiés</p>
           </div>
-          <button
-            onClick={() => navigate('ajouter')}
-            className="flex items-center gap-1.5 px-3 py-2 bg-primary text-on-primary rounded-xl text-sm font-semibold hover:opacity-90 transition-all active:scale-95"
-          >
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-              <line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" />
-            </svg>
-            Ajouter
-          </button>
         </div>
       </header>
 
@@ -283,19 +587,16 @@ const GestionProduits = ({ isEmbedded }: { isEmbedded?: boolean }) => {
             <p className="font-semibold text-primary/60 mb-1">
               {filter === 'tous' ? 'Aucun produit publié' : 'Aucun produit dans cette catégorie'}
             </p>
-            {filter === 'tous' && (
-              <button onClick={() => navigate('ajouter')}
-                className="mt-4 px-5 py-2.5 bg-primary text-on-primary rounded-xl font-semibold text-sm hover:opacity-90 transition-all">
-                Publier un produit
-              </button>
-            )}
           </div>
         ) : (
           <div className="space-y-3">
             {filtered.map(produit => (
-              <div key={produit.id}
-                className={cn('bg-white rounded-2xl border overflow-hidden transition-all',
-                  produit.est_disponible ? 'border-surface-container' : 'border-surface-container opacity-70')}>
+              <button
+                key={produit.id}
+                onClick={() => setSelectedProduit(produit)}
+                className={cn('w-full bg-white rounded-2xl border overflow-hidden transition-all text-left hover:border-primary/30 hover:shadow-sm active:scale-[0.99]',
+                  produit.est_disponible ? 'border-surface-container' : 'border-surface-container opacity-70')}
+              >
                 <div className="flex gap-3 p-4">
                   <div className="w-16 h-16 rounded-xl bg-surface-container flex items-center justify-center shrink-0 overflow-hidden">
                     {produit.photo
@@ -323,35 +624,31 @@ const GestionProduits = ({ isEmbedded }: { isEmbedded?: boolean }) => {
                       <p className="text-xs text-primary/40 mt-1">📍 {produit.localisation}</p>
                     )}
                   </div>
+                  <div className="flex items-center shrink-0">
+                    <ChevronDown size={16} className="text-primary/30 -rotate-90" />
+                  </div>
                 </div>
-                <div className="border-t border-surface-container flex divide-x divide-surface-container">
-                  <button onClick={() => toggleDisponibilite(produit)} disabled={toggling === produit.id}
-                    className={cn('flex-1 flex items-center justify-center gap-1.5 py-2.5 text-xs font-semibold transition-colors',
-                      produit.est_disponible ? 'text-primary/50 hover:bg-surface-container hover:text-primary' : 'text-emerald-600 hover:bg-emerald-50')}>
-                    {toggling === produit.id
-                      ? <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="animate-spin"><path d="M3 12a9 9 0 1 0 9-9"/></svg>
-                      : produit.est_disponible ? 'Masquer' : 'Mettre en vente'
-                    }
-                  </button>
-                  {confirmDelete === produit.id ? (
-                    <div className="flex-1 flex divide-x divide-surface-container">
-                      <button onClick={() => setConfirmDelete(null)} className="flex-1 py-2.5 text-xs font-semibold text-primary/50 hover:bg-surface-container">Annuler</button>
-                      <button onClick={() => supprimerProduit(produit.id)} disabled={deleting === produit.id} className="flex-1 py-2.5 text-xs font-semibold text-red-600 hover:bg-red-50">
-                        {deleting === produit.id ? '...' : 'Confirmer'}
-                      </button>
-                    </div>
-                  ) : (
-                    <button onClick={() => setConfirmDelete(produit.id)}
-                      className="flex-1 flex items-center justify-center gap-1.5 py-2.5 text-xs font-semibold text-red-400 hover:bg-red-50 hover:text-red-600 transition-colors">
-                      Supprimer
-                    </button>
-                  )}
-                </div>
-              </div>
+              </button>
             ))}
           </div>
         )}
       </div>
+
+      {/* Admin modal */}
+      {selectedProduit && (
+        <ProduitAdminModal
+          produit={selectedProduit}
+          onClose={() => setSelectedProduit(null)}
+          onSaved={(updated) => {
+            setProduits(prev => prev.map(p => p.id === updated.id ? updated : p));
+            setSelectedProduit(null);
+          }}
+          onDeleted={(id) => {
+            setProduits(prev => prev.filter(p => p.id !== id));
+            setSelectedProduit(null);
+          }}
+        />
+      )}
     </div>
   );
 };

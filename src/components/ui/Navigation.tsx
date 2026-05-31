@@ -1,6 +1,6 @@
 import React from 'react';
 import { cn } from '../../lib/utils';
-import { Home, ShoppingBag, MessageSquare, Newspaper, User, Settings, LogOut } from 'lucide-react';
+import { Home, ShoppingBag, MessageSquare, Newspaper, User, LogOut } from 'lucide-react';
 import type { RoutePath, RouteState } from '../../router/RouterContext';
 
 export interface NavigationProps {
@@ -24,7 +24,6 @@ const Navigation = ({ active, onNavigate, onLogout, userRole }: NavigationProps)
     { icon: Newspaper,     label: 'Actus',      page: 'feed'        },
     { icon: MessageSquare, label: 'Chat',       page: 'chat'        },
     { icon: User,          label: 'Profil',     page: 'profil'      },
-    { icon: Settings,      label: 'Réglages',   page: 'parametres'  },
   ];
 
   return (
