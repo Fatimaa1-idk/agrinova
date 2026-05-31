@@ -154,12 +154,12 @@ const ProduitAdminModal = ({ produit, onClose, onSaved, onDeleted }: AdminModalP
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex flex-col items-center justify-end lg:justify-center p-0 lg:p-6" style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}>
+    <div className="fixed inset-0 z-[60] flex flex-col items-center justify-end lg:justify-center p-0 lg:p-6">
       {/* Backdrop */}
       <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={onClose} />
 
       {/* Sheet */}
-      <div className="relative mt-auto lg:mt-0 bg-white rounded-t-3xl lg:rounded-3xl shadow-2xl max-h-[92vh] lg:max-h-[88vh] flex flex-col w-full lg:max-w-3xl">
+      <div className="relative mt-auto lg:mt-0 bg-white rounded-t-3xl lg:rounded-3xl shadow-2xl max-h-[90vh] lg:max-h-[88vh] flex flex-col w-full lg:max-w-3xl">
         {/* Drag handle */}
         <div className="flex justify-center pt-3 pb-1 shrink-0">
           <div className="w-10 h-1 bg-black/10 rounded-full" />
@@ -186,6 +186,19 @@ const ProduitAdminModal = ({ produit, onClose, onSaved, onDeleted }: AdminModalP
 
         {/* Scrollable content */}
         <div className="overflow-y-auto flex-1 px-4 py-4 space-y-4">
+
+          {/* Upload error banner */}
+          {photoError && (
+            <div className="flex items-center gap-2 px-3 py-2.5 bg-red-50 border border-red-200 rounded-xl">
+              <span className="text-red-500 shrink-0">✕</span>
+              <p className="text-xs font-bold text-red-700 flex-1">
+                Upload échoué — vérifiez votre connexion. La photo précédente sera conservée.
+              </p>
+              <button onClick={() => setPhotoError(false)} className="text-red-400 hover:text-red-600 shrink-0">
+                <X size={13} />
+              </button>
+            </div>
+          )}
 
           {/* Photo */}
           <div>
@@ -338,7 +351,8 @@ const ProduitAdminModal = ({ produit, onClose, onSaved, onDeleted }: AdminModalP
         </div>
 
         {/* Footer save button */}
-        <div className="px-4 py-4 border-t border-surface-container bg-white shrink-0">
+        <div className="px-4 pt-3 pb-4 border-t border-surface-container bg-white shrink-0"
+          style={{ paddingBottom: 'max(1rem, env(safe-area-inset-bottom))' }}>
           <button onClick={handleSave} disabled={saving || uploadingPhoto}
             className="w-full flex items-center justify-center gap-2 py-4 rounded-2xl font-black text-white text-sm shadow-md disabled:opacity-70 transition-all active:scale-95"
             style={{ background: 'linear-gradient(135deg, #012d1d 0%, #1b4332 100%)' }}>
