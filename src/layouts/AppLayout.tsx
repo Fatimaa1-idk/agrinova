@@ -9,7 +9,7 @@ interface AppLayoutProps {
 
 export function AppLayout({ children }: AppLayoutProps) {
   const { currentPath, navigate } = useRouter();
-  const { user } = useAuth();
+  const { user, logout } = useAuth();
 
   useEffect(() => {
     if (currentPath === 'bot') {
@@ -20,6 +20,16 @@ export function AppLayout({ children }: AppLayoutProps) {
       navigate('accueil', { tab: 'profil' });
     }
   }, [currentPath, user]);
+
+  // Redirect to connexion on any 401 from the API
+  useEffect(() => {
+    const handle = () => {
+      logout();
+      navigate('connexion');
+    };
+    window.addEventListener('agrinova-unauthorized', handle);
+    return () => window.removeEventListener('agrinova-unauthorized', handle);
+  }, []);
 
   const handleNavigation = (page: RoutePath, state?: RouteState) => {
     navigate(page, state);
