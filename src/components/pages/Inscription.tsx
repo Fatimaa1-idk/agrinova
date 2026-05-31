@@ -66,17 +66,11 @@ const Inscription = () => {
         localisation: formLoc,
       });
 
-      if (data.token) {
-        localStorage.setItem('agrinova_token', data.token);
-        localStorage.setItem('agrinova_user', JSON.stringify(data.utilisateur));
-        login(data.utilisateur);
-        showToast(`Bienvenue ${data.utilisateur.nom} ! Compte ${formRole === 'producteur' ? 'producteur' : 'acheteur'} créé.`);
-        navigate('accueil');
-      } else {
-        setFormErreur(data.detail || "Erreur lors de l'inscription");
-      }
-    } catch {
-      setFormErreur('Serveur indisponible. Réessayez plus tard.');
+      login(data.utilisateur, data.token);
+      showToast(`Bienvenue ${data.utilisateur.nom} !`);
+      navigate('accueil');
+    } catch (e: any) {
+      setFormErreur(e?.message || 'Serveur indisponible. Réessayez plus tard.');
     }
 
     setChargement(false);

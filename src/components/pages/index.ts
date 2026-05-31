@@ -9,3 +9,5 @@ export { AjoutProduit } from './AjoutProduit';
 export { Profil } from './Profil';
 export { ProductDetail } from './ProductDetail';
 export { GestionProduits } from './GestionProduits';
+export { Feed } from './Feed';
+export { FarmerProfile } from './FarmerProfile';

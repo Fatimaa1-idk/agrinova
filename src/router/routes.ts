@@ -26,8 +26,10 @@ export const routes: RouteConfig[] = [
   { path: 'produit',         guard: 'public',     layout: 'app'  },
   { path: 'bot',             guard: 'auth',       layout: 'app'  },
   { path: 'chat',            guard: 'auth',       layout: 'app'  },
-  { path: 'profil',          guard: 'auth',       layout: 'app'  }, // made profil available for everyone
+  { path: 'profil',          guard: 'auth',       layout: 'app'  },
   { path: 'ajouter',         guard: 'producteur', layout: 'app'  },
   { path: 'mes-commandes',   guard: 'auth',       layout: 'app'  },
   { path: 'gestion-produits',guard: 'producteur', layout: 'app'  },
+  { path: 'feed',            guard: 'auth',       layout: 'app'  },
+  { path: 'farmer-profile',  guard: 'public',     layout: 'app'  },
 ];

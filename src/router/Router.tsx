@@ -16,20 +16,24 @@ import {
   Profil,
   ProductDetail,
   GestionProduits,
+  Feed,
+  FarmerProfile,
 } from '../components/pages';
 
 const pageMap: Record<string, React.ComponentType> = {
-  onboarding:       Onboarding,
-  accueil:          Accueil,
-  marketplace:      Marketplace,
-  inscription:      Inscription,
-  connexion:        Connexion,
-  bot:              BotAssistant,
-  chat:             Chat,
-  ajouter:          AjoutProduit,
-  profil:           Profil,
-  produit:          ProductDetail,
+  onboarding:        Onboarding,
+  accueil:           Accueil,
+  marketplace:       Marketplace,
+  inscription:       Inscription,
+  connexion:         Connexion,
+  bot:               BotAssistant,
+  chat:              Chat,
+  ajouter:           AjoutProduit,
+  profil:            Profil,
+  produit:           ProductDetail,
   'gestion-produits': GestionProduits,
+  feed:              Feed,
+  'farmer-profile':  FarmerProfile,
 };
 
 export function Router() {
