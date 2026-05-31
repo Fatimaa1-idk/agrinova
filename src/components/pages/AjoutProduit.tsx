@@ -1,5 +1,4 @@
 import React, { useState } from 'react';
-import { Button, Icon } from '../ui';
 import { ZonePicker } from '../ui/ZonePicker';
 import { cn } from '../../lib/utils';
 import { useToast } from '../../context/ToastContext';
@@ -18,7 +17,7 @@ const categories = [
   { value: 'Légumineuses', label: 'Légumi.',  icon: Sprout },
 ];
 
-const AjoutProduit = ({ isEmbedded, onFinished }: { isEmbedded?: boolean; onFinished?: () => void }) => {
+const AjoutProduit = ({ isEmbedded = true, onFinished }: { isEmbedded?: boolean; onFinished?: () => void }) => {
   const { showToast } = useToast();
   const { navigate } = useRouter();
 
@@ -37,7 +36,6 @@ const AjoutProduit = ({ isEmbedded, onFinished }: { isEmbedded?: boolean; onFini
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(false);
   const [uploadingPhoto, setUploadingPhoto] = useState(false);
-  const [currentStep, setCurrentStep] = useState(1);
 
   const set = (field: string, value: string | boolean) => {
     setFormData(prev => ({ ...prev, [field]: value }));
@@ -84,20 +82,6 @@ const AjoutProduit = ({ isEmbedded, onFinished }: { isEmbedded?: boolean; onFini
     if (!formData.prix || parseFloat(formData.prix) <= 0) e.prix = 'Requis';
     if (!formData.quantite_disponible || parseInt(formData.quantite_disponible) <= 0) e.quantite_disponible = 'Requis';
     if (!formData.localisation.trim()) e.localisation = 'Requis';
-    setErrors(e);
-    return Object.keys(e).length === 0;
-  };
-
-  const validateStep = (step: number): boolean => {
-    const e: Record<string, string> = {};
-    if (step === 1) {
-      if (!formData.nom.trim()) e.nom = 'Requis';
-      if (!formData.prix || parseFloat(formData.prix) <= 0) e.prix = 'Requis';
-      if (!formData.quantite_disponible || parseInt(formData.quantite_disponible) <= 0) e.quantite_disponible = 'Requis';
-    }
-    if (step === 2) {
-      if (!formData.localisation.trim()) e.localisation = 'Requis';
-    }
     setErrors(e);
     return Object.keys(e).length === 0;
   };
@@ -282,172 +266,7 @@ const AjoutProduit = ({ isEmbedded, onFinished }: { isEmbedded?: boolean; onFini
     );
   }
 
-  /* ── FULL PAGE: 3-step ───────────────────────────────────────── */
-  const renderStepContent = () => {
-    switch (currentStep) {
-      case 1:
-        return (
-          <div className="space-y-5">
-            <div>
-              <h2 className="text-xl font-black text-primary tracking-tight">Infos principales</h2>
-              <p className="text-sm font-medium text-secondary mt-1">Détails de base de votre produit.</p>
-            </div>
-            <div className="space-y-1.5">
-              <label className="block text-sm font-bold text-primary">Nom du produit</label>
-              <input value={formData.nom} onChange={e => set('nom', e.target.value)} placeholder="Ex: Tomates de la zone des Niayes"
-                className={cn('w-full px-4 py-3 border-2 rounded-2xl outline-none text-sm font-medium transition-all',
-                  errors.nom ? 'border-red-400 bg-red-50' : 'border-surface-container bg-white focus:border-primary/40 focus:ring-2 focus:ring-primary/10')} />
-              {errors.nom && <p className="text-xs text-red-500 font-bold">{errors.nom}</p>}
-            </div>
-            <div>
-              <label className="block text-sm font-bold text-primary mb-2">Description</label>
-              <textarea value={formData.description} onChange={e => set('description', e.target.value)}
-                placeholder="Qualité, fraîcheur, origine…" rows={3}
-                className="w-full px-4 py-3 border-2 rounded-2xl outline-none resize-none font-medium text-sm transition-all border-surface-container bg-white focus:border-primary/40 focus:ring-2 focus:ring-primary/10" />
-            </div>
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-1.5">
-                <label className="block text-sm font-bold text-primary">Prix (FCFA/kg)</label>
-                <input type="number" value={formData.prix} onChange={e => set('prix', e.target.value)} placeholder="500"
-                  className={cn('w-full px-4 py-3 border-2 rounded-2xl outline-none text-sm font-medium transition-all',
-                    errors.prix ? 'border-red-400 bg-red-50' : 'border-surface-container bg-white focus:border-primary/40 focus:ring-2 focus:ring-primary/10')} />
-                {errors.prix && <p className="text-xs text-red-500 font-bold">{errors.prix}</p>}
-              </div>
-              <div className="space-y-1.5">
-                <label className="block text-sm font-bold text-primary">Stock (kg)</label>
-                <input type="number" value={formData.quantite_disponible} onChange={e => set('quantite_disponible', e.target.value)} placeholder="50"
-                  className={cn('w-full px-4 py-3 border-2 rounded-2xl outline-none text-sm font-medium transition-all',
-                    errors.quantite_disponible ? 'border-red-400 bg-red-50' : 'border-surface-container bg-white focus:border-primary/40 focus:ring-2 focus:ring-primary/10')} />
-                {errors.quantite_disponible && <p className="text-xs text-red-500 font-bold">{errors.quantite_disponible}</p>}
-              </div>
-            </div>
-            <div>
-              <label className="block text-sm font-bold text-primary mb-2">Catégorie</label>
-              <div className="grid grid-cols-4 gap-2">
-                {categories.map(({ value, label, icon: CatIcon }) => {
-                  const sel = formData.categorie === value;
-                  return (
-                    <button key={value} onClick={() => set('categorie', value)}
-                      className={cn('p-3 rounded-2xl border-2 flex flex-col items-center gap-1.5 transition-all',
-                        sel ? 'border-primary bg-primary/5 text-primary' : 'border-surface-container bg-white text-secondary hover:border-primary/30')}>
-                      <CatIcon size={22} strokeWidth={sel ? 2.5 : 2} />
-                      <span className="text-[10px] font-bold">{label}</span>
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-          </div>
-        );
-
-      case 2:
-        return (
-          <div className="space-y-6">
-            <div>
-              <h2 className="text-xl font-black text-primary tracking-tight">Médias & Lieu</h2>
-              <p className="text-sm font-medium text-secondary mt-1">Photo et provenance du produit.</p>
-            </div>
-            <PhotoBlock />
-            <ZonePicker value={formData.localisation} onChange={val => set('localisation', val)} error={errors.localisation} required label="Localisation du produit" />
-          </div>
-        );
-
-      case 3:
-        return (
-          <div className="space-y-5">
-            <div>
-              <h2 className="text-xl font-black text-primary tracking-tight">Vérification</h2>
-              <p className="text-sm font-medium text-secondary mt-1">Relisez avant de publier.</p>
-            </div>
-            <div className="bg-white border border-surface-container rounded-3xl overflow-hidden">
-              {formData.photoPreview && (
-                <div className="h-36 relative">
-                  <img src={formData.photoPreview} alt="Product" className="w-full h-full object-cover" />
-                  <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent flex items-end p-4">
-                    <h3 className="text-white font-black text-xl">{formData.nom || 'Sans nom'}</h3>
-                  </div>
-                </div>
-              )}
-              <div className="p-4 space-y-3">
-                {!formData.photoPreview && <h3 className="font-black text-xl text-primary">{formData.nom || 'Sans nom'}</h3>}
-                <div className="grid grid-cols-2 gap-3 text-sm">
-                  <div className="bg-surface rounded-xl p-3"><p className="text-xs font-bold text-secondary uppercase mb-1">Catégorie</p><p className="font-bold text-primary">{formData.categorie}</p></div>
-                  <div className="bg-primary/5 rounded-xl p-3"><p className="text-xs font-bold text-primary/60 uppercase mb-1">Prix</p><p className="font-black text-primary">{formData.prix} <span className="text-xs">FCFA/kg</span></p></div>
-                  <div className="bg-surface rounded-xl p-3"><p className="text-xs font-bold text-secondary uppercase mb-1">Stock</p><p className="font-black text-primary">{formData.quantite_disponible} <span className="text-xs">kg</span></p></div>
-                  <div className="bg-surface rounded-xl p-3"><p className="text-xs font-bold text-secondary uppercase mb-1">Zone</p><p className="font-bold text-primary text-xs truncate">{formData.localisation || '—'}</p></div>
-                </div>
-              </div>
-            </div>
-
-            <PublicationToggle />
-
-            <label className={cn('flex items-center gap-3 p-4 rounded-2xl border-2 cursor-pointer transition-all',
-              formData.certifie ? 'border-agri-gold bg-agri-gold/5' : 'border-surface-container bg-white hover:border-primary/20')}>
-              <div className={cn('w-6 h-6 rounded-md border-2 flex items-center justify-center transition-colors',
-                formData.certifie ? 'bg-agri-gold border-agri-gold text-white' : 'border-surface-container-high text-transparent')}>
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
-              </div>
-              <div className="flex-1">
-                <p className={cn('font-bold text-sm', formData.certifie ? 'text-agri-gold-hover' : 'text-primary')}>Certification Agrinova</p>
-                <p className="text-xs text-secondary font-medium">Mon produit respecte les normes certifiées</p>
-              </div>
-              <Star size={20} className={cn(formData.certifie ? 'text-agri-gold' : 'text-surface-container-high')} fill={formData.certifie ? 'currentColor' : 'none'} />
-              <input type="checkbox" className="sr-only" checked={formData.certifie} onChange={e => set('certifie', e.target.checked)} />
-            </label>
-          </div>
-        );
-      default:
-        return null;
-    }
-  };
-
-  return (
-    <div className="bg-surface min-h-screen pb-32">
-      <header className="bg-white border-b border-surface-container px-4 py-4 sticky top-0 z-10">
-        <div className="flex items-center gap-3">
-          <button onClick={() => navigate('accueil')} className="p-2 -ml-2 rounded-xl hover:bg-surface-container transition-colors">
-            <Icon name="←" size={24} />
-          </button>
-          <div>
-            <h1 className="font-black text-xl text-primary tracking-tight">Vendre un produit</h1>
-            <p className="text-xs font-bold text-secondary mt-0.5 uppercase tracking-wider">Étape {currentStep} sur 3</p>
-          </div>
-        </div>
-        <div className="mt-3 w-full bg-surface-container rounded-full h-1.5 overflow-hidden">
-          <div className="bg-primary h-full rounded-full transition-all duration-500" style={{ width: `${(currentStep / 3) * 100}%` }} />
-        </div>
-      </header>
-
-      <main className="max-w-2xl mx-auto px-5 py-5">
-        {renderStepContent()}
-        <div className="flex items-center gap-3 mt-8 pt-5 border-t border-surface-container">
-          {currentStep > 1 && (
-            <button onClick={() => setCurrentStep(p => Math.max(p - 1, 1))}
-              className="px-5 py-3.5 rounded-xl font-bold text-secondary bg-surface-container hover:bg-surface-container-high transition-colors">
-              Retour
-            </button>
-          )}
-          <button
-            onClick={() => {
-              if (currentStep < 3) {
-                if (validateStep(currentStep)) setCurrentStep(p => Math.min(p + 1, 3));
-              } else {
-                handleSubmit();
-              }
-            }}
-            disabled={loading || uploadingPhoto}
-            className="flex-1 flex items-center justify-center gap-2 py-3.5 rounded-xl font-black text-white bg-primary hover:bg-primary/90 transition-colors shadow-sm disabled:opacity-70"
-          >
-            {uploadingPhoto ? (
-              <><div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" /> Photo en cours...</>
-            ) : currentStep < 3 ? 'Continuer' : (
-              <><CheckCircle size={18} strokeWidth={2.5} />{formData.est_disponible ? 'Publier' : 'Enregistrer'}</>
-            )}
-          </button>
-        </div>
-      </main>
-    </div>
-  );
+  return null;
 };
 
 export { AjoutProduit };
