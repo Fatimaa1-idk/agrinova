@@ -1,6 +1,6 @@
 import React from 'react';
 import { cn } from '../../lib/utils';
-import { Home, ShoppingBag, MessageSquare, Plus, Package } from 'lucide-react';
+import { Home, ShoppingBag, MessageSquare, Plus, Package, Newspaper } from 'lucide-react';
 import type { RoutePath, RouteState } from '../../router/RouterContext';
 
 export interface NavigationProps {
@@ -22,6 +22,7 @@ const Navigation = ({ active, onNavigate, cartItemCount = 0, userRole }: Navigat
   const baseItems: NavItem[] = [
     { icon: Home,         label: 'Accueil', page: 'accueil'    },
     { icon: ShoppingBag,  label: 'Marché',  page: 'marketplace' },
+    { icon: Newspaper,    label: 'Actus',   page: 'feed'        },
     { icon: MessageSquare,label: 'Chat',    page: 'chat'        },
   ];
 

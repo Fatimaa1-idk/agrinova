@@ -85,7 +85,7 @@ const statutConfig: Record<string, { label: string; bg: string; text: string; ic
 };
 
 const Accueil = () => {
-  const { user, logout } = useAuth();
+  const { user, logout, updateUser } = useAuth();
   const { showToast } = useToast();
   const { navigate, routeState } = useRouter();
 
@@ -178,11 +178,11 @@ const Accueil = () => {
   const handleCancelOrder = async (id: number) => {
     setCancelingId(id);
     try {
-      await api(`/commandes/${id}`, 'DELETE');
+      await api(`/commandes/${id}/statut`, 'PUT', { statut: 'annulee' });
       setCommandes(prev => prev.map(c => c.id === id ? { ...c, statut: 'annulee' } : c));
       showToast('Commande annulée avec succès');
-    } catch {
-      showToast('Impossible d\'annuler cette commande');
+    } catch (e: any) {
+      showToast(e?.message || 'Impossible d\'annuler cette commande');
     }
     setCancelingId(null);
   };
@@ -229,14 +229,12 @@ const Accueil = () => {
     try {
       const response = await api('/auth/profile', 'PUT', formData);
       if (response.success) {
+        updateUser(response.utilisateur ?? formData);
         showToast('Profil mis à jour avec succès');
         setIsEditing(false);
-        localStorage.setItem('agrinova_user', JSON.stringify({ ...user, ...formData }));
-      } else {
-        showToast('Erreur lors de la mise à jour');
       }
-    } catch {
-      showToast('Serveur indisponible. Réessayez plus tard.');
+    } catch (e: any) {
+      showToast(e?.message || 'Erreur lors de la mise à jour');
     }
     setProfileLoading(false);
   };

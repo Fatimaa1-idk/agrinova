@@ -79,25 +79,20 @@ const AjoutProduit = ({ isEmbedded, onFinished }: { isEmbedded?: boolean; onFini
     if (!validate()) return;
     setLoading(true);
     try {
-      const response = await api('/produits', 'POST', {
+      await api('/produits', 'POST', {
         nom: formData.nom,
         description: formData.description,
         prix: parseFloat(formData.prix),
+        unite: 'kg',
         quantite_disponible: parseInt(formData.quantite_disponible),
         localisation: formData.localisation,
         categorie: formData.categorie,
-        certifie: formData.certifie,
-        est_disponible: true,
       });
-      if (response.id) {
-        showToast('Produit publié !');
-        if (onFinished) onFinished();
-        else navigate('gestion-produits');
-      } else {
-        showToast('Erreur lors de la publication');
-      }
-    } catch {
-      showToast('Serveur indisponible. Réessayez plus tard.');
+      showToast('Produit publié !');
+      if (onFinished) onFinished();
+      else navigate('gestion-produits');
+    } catch (e: any) {
+      showToast(e?.message || 'Erreur lors de la publication');
     }
     setLoading(false);
   };

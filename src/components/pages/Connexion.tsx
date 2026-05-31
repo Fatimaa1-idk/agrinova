@@ -31,17 +31,11 @@ const Connexion = () => {
         mot_de_passe: formMdp,
       });
 
-      if (data.token) {
-        localStorage.setItem('agrinova_token', data.token);
-        localStorage.setItem('agrinova_user', JSON.stringify(data.utilisateur));
-        login(data.utilisateur);
-        showToast(`Bienvenue ${data.utilisateur.nom} !`);
-        navigate('accueil');
-      } else {
-        setFormErreur(data.detail || 'Email ou mot de passe incorrect');
-      }
-    } catch {
-      setFormErreur('Serveur indisponible. Réessayez plus tard.');
+      login(data.utilisateur, data.token);
+      showToast(`Bienvenue ${data.utilisateur.nom} !`);
+      navigate('accueil');
+    } catch (e: any) {
+      setFormErreur(e?.message || 'Email ou mot de passe incorrect');
     }
 
     setChargement(false);

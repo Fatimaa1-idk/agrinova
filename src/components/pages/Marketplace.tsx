@@ -4,6 +4,7 @@ import { useAuth } from '../../context/AuthContext';
 import { useToast } from '../../context/ToastContext';
 import { useRouter } from '../../router/RouterContext';
 import { api } from '../../services/api';
+import { FarmerProfileModal } from './FarmerProfile';
 import {
   Search, X, ShoppingCart, Plus, Minus, Trash2,
   MapPin, Star, ShieldCheck, Package, ChevronRight,
@@ -88,12 +89,14 @@ const ProduitCard = ({
   onView,
   onContact,
   onAddToCart,
+  onViewFarmer,
   isProducteur,
 }: {
   produit: Produit;
   onView: (p: Produit) => void;
   onContact: (p: Produit) => void;
   onAddToCart?: (p: Produit) => void;
+  onViewFarmer?: (id: number) => void;
   isProducteur: boolean;
 }) => {
   const inStock = produit.est_disponible && produit.quantite_disponible > 0;
@@ -159,12 +162,15 @@ const ProduitCard = ({
         </div>
 
         {/* Vendeur */}
-        <div className="flex items-center gap-2 pt-2 border-t border-surface-container">
+        <button
+          onClick={() => produit.agriculteur_id && onViewFarmer?.(produit.agriculteur_id)}
+          className="flex items-center gap-2 pt-2 border-t border-surface-container w-full text-left hover:bg-primary/3 -mx-0.5 px-0.5 rounded-lg transition-colors"
+        >
           <div className="w-6 h-6 rounded-full bg-primary/10 flex items-center justify-center shrink-0">
             <span className="text-[9px] font-black text-primary">{initials(produit.agriculteur_nom)}</span>
           </div>
           <div className="flex-1 min-w-0">
-            <p className="text-[10px] font-bold text-primary truncate">{produit.agriculteur_nom || 'Producteur'}</p>
+            <p className="text-[10px] font-bold text-primary truncate underline-offset-1 hover:underline">{produit.agriculteur_nom || 'Producteur'}</p>
             <p className="text-[9px] text-primary/40 flex items-center gap-1">
               {produit.agriculteur_note && produit.agriculteur_note > 0
                 ? <><span>⭐ {produit.agriculteur_note.toFixed(1)}</span><span>·</span></>
@@ -172,7 +178,8 @@ const ProduitCard = ({
               <span className="truncate">{produit.localisation || produit.agriculteur_localisation || 'Sénégal'}</span>
             </p>
           </div>
-        </div>
+          {produit.agriculteur_verifie && <ShieldCheck size={12} className="text-blue-500 shrink-0" />}
+        </button>
 
         {/* Actions */}
         <div className="flex gap-1.5 mt-auto">
@@ -637,6 +644,7 @@ const Marketplace = () => {
   const [cartOpen, setCartOpen] = useState(false);
   const [checkoutOpen, setCheckoutOpen] = useState(false);
   const [checkoutLoading, setCheckoutLoading] = useState(false);
+  const [farmerProfileId, setFarmerProfileId] = useState<number | null>(null);
 
   // Cart
   const [cart, setCart] = useState<CartItem[]>([]);
@@ -870,6 +878,7 @@ const Marketplace = () => {
                 onView={setDetailProduit}
                 onContact={handleContact}
                 onAddToCart={p2 => handleAddToCart(p2)}
+                onViewFarmer={id => setFarmerProfileId(id)}
                 isProducteur={isProducteur}
               />
             ))}
@@ -925,6 +934,13 @@ const Marketplace = () => {
           onClose={() => setCheckoutOpen(false)}
           onConfirm={handleCheckout}
           loading={checkoutLoading}
+        />
+      )}
+
+      {farmerProfileId && (
+        <FarmerProfileModal
+          userId={farmerProfileId}
+          onClose={() => setFarmerProfileId(null)}
         />
       )}
     </div>
