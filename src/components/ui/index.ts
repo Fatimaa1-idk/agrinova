@@ -19,3 +19,6 @@ export type { NavigationProps } from './Navigation';
 export { BottomSheet } from './BottomSheet';
 
 export { BotFloatingAssistant } from './BotFloatingAssistant';
+
+export { ZonePicker } from './ZonePicker';
+export type { ZonePickerProps } from './ZonePicker';

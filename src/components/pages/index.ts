@@ -11,3 +11,4 @@ export { ProductDetail } from './ProductDetail';
 export { GestionProduits } from './GestionProduits';
 export { Feed } from './Feed';
 export { FarmerProfile } from './FarmerProfile';
+export { Parametres } from './Parametres';

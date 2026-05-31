@@ -15,7 +15,8 @@ export type RoutePath =
   | 'mes-commandes'
   | 'gestion-produits'
   | 'feed'
-  | 'farmer-profile';
+  | 'farmer-profile'
+  | 'parametres';
 
 // Arbitrary data passed alongside a navigation (e.g. selected product)
 export type RouteState = Record<string, unknown>;
