@@ -117,7 +117,7 @@ const ProduitAdminModal = ({ produit, onClose, onSaved, onDeleted }: AdminModalP
     if (!validate()) return;
     setSaving(true);
     try {
-      const updated = await api(`/produits/${produit.id}`, 'PUT', {
+      await api(`/produits/${produit.id}`, 'PUT', {
         nom: form.nom,
         description: form.description,
         prix: parseFloat(form.prix),
@@ -128,7 +128,17 @@ const ProduitAdminModal = ({ produit, onClose, onSaved, onDeleted }: AdminModalP
         localisation: form.localisation,
         est_disponible: form.est_disponible,
       });
-      onSaved({ ...produit, ...updated, est_disponible: form.est_disponible });
+      onSaved({
+        ...produit,
+        nom: form.nom,
+        description: form.description,
+        prix: parseFloat(form.prix),
+        quantite_disponible: parseInt(form.quantite_disponible),
+        categorie: form.categorie,
+        photo: form.photoUrl || produit.photo,
+        localisation: form.localisation,
+        est_disponible: form.est_disponible,
+      });
       showToast('Produit mis à jour');
       onClose();
     } catch (e: any) {

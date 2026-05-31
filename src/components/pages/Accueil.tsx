@@ -100,7 +100,22 @@ const Accueil = () => {
   // UI state
   const [lang, setLang] = useState<Lang>('FR');
   const [speaking, setSpeaking] = useState(false);
-  const [activeSection, setActiveSection] = useState<Section>('dashboard');
+  const [activeSection, setActiveSection] = useState<Section>(() => {
+    const saved = localStorage.getItem('agrinova_accueil_tab');
+    if (saved === 'dashboard' || saved === 'commandes' || saved === 'catalogue') return saved;
+    return 'dashboard';
+  });
+
+  // Guard: if saved tab is 'catalogue' but user is acheteur, reset
+  useEffect(() => {
+    if (!user) return;
+    if (activeSection === 'catalogue' && !isProducteur) setActiveSection('dashboard');
+  }, [user?.id]);
+
+  // Persist active tab across refreshes
+  useEffect(() => {
+    localStorage.setItem('agrinova_accueil_tab', activeSection);
+  }, [activeSection]);
 
   // Producteur modals
   const [isAjoutProduitOpen, setIsAjoutProduitOpen] = useState(false);
