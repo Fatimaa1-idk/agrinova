@@ -64,6 +64,7 @@ const ProduitAdminModal = ({ produit, onClose, onSaved, onDeleted }: AdminModalP
   const [deleting, setDeleting] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [uploadingPhoto, setUploadingPhoto] = useState(false);
+  const [photoError, setPhotoError] = useState(false);
 
   const set = (field: string, value: string | boolean) => {
     setForm(prev => ({ ...prev, [field]: value }));
@@ -75,6 +76,7 @@ const ProduitAdminModal = ({ produit, onClose, onSaved, onDeleted }: AdminModalP
     if (!file) return;
     if (file.size > 10 * 1024 * 1024) { showToast('La photo ne doit pas dépasser 10 Mo'); return; }
 
+    setPhotoError(false);
     const reader = new FileReader();
     reader.onloadend = () => setForm(prev => ({ ...prev, photoPreview: reader.result as string }));
     reader.readAsDataURL(file);
@@ -89,12 +91,13 @@ const ProduitAdminModal = ({ produit, onClose, onSaved, onDeleted }: AdminModalP
         headers: token ? { Authorization: `Bearer ${token}` } : {},
         body: fd,
       });
-      if (!res.ok) throw new Error('Upload échoué');
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const data = await res.json();
       setForm(prev => ({ ...prev, photoUrl: data.url }));
-      showToast('Photo mise à jour');
-    } catch {
-      showToast('Erreur upload — ancienne photo conservée');
+      showToast('Photo mise à jour ✓');
+    } catch (err: any) {
+      setPhotoError(true);
+      showToast(`Échec upload : ${err?.message || 'erreur réseau'}`);
     } finally {
       setUploadingPhoto(false);
     }
@@ -151,12 +154,12 @@ const ProduitAdminModal = ({ produit, onClose, onSaved, onDeleted }: AdminModalP
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex flex-col" style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}>
+    <div className="fixed inset-0 z-50 flex flex-col items-center justify-end lg:justify-center p-0 lg:p-6" style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}>
       {/* Backdrop */}
       <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={onClose} />
 
       {/* Sheet */}
-      <div className="relative mt-auto bg-white rounded-t-3xl shadow-2xl max-h-[92vh] flex flex-col">
+      <div className="relative mt-auto lg:mt-0 bg-white rounded-t-3xl lg:rounded-3xl shadow-2xl max-h-[92vh] lg:max-h-[88vh] flex flex-col w-full lg:max-w-3xl">
         {/* Drag handle */}
         <div className="flex justify-center pt-3 pb-1 shrink-0">
           <div className="w-10 h-1 bg-black/10 rounded-full" />
@@ -188,19 +191,29 @@ const ProduitAdminModal = ({ produit, onClose, onSaved, onDeleted }: AdminModalP
           <div>
             <p className="text-xs font-bold text-primary/60 uppercase tracking-wider mb-1.5">Photo</p>
             {form.photoPreview ? (
-              <div className="relative h-36 rounded-2xl overflow-hidden border border-surface-container">
-                <img src={form.photoPreview} alt="Preview" className="w-full h-full object-cover" />
+              <div className={cn('relative h-36 rounded-2xl overflow-hidden border-2 transition-colors', photoError ? 'border-red-400' : 'border-surface-container')}>
+                <img src={form.photoPreview} alt="Preview" className={cn('w-full h-full object-cover', photoError && 'opacity-60')} />
                 {uploadingPhoto && (
-                  <div className="absolute inset-0 bg-black/40 flex items-center justify-center">
+                  <div className="absolute inset-0 bg-black/40 flex flex-col items-center justify-center gap-2">
                     <div className="w-6 h-6 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                    <span className="text-white text-[10px] font-bold">Envoi en cours…</span>
+                  </div>
+                )}
+                {photoError && !uploadingPhoto && (
+                  <div className="absolute inset-0 bg-red-500/20 flex flex-col items-center justify-center gap-1.5">
+                    <span className="text-red-700 text-xs font-black bg-white/90 px-3 py-1 rounded-full shadow-sm">
+                      ✕ Échec upload — réessayer
+                    </span>
                   </div>
                 )}
                 <label className="absolute inset-0 cursor-pointer">
                   <input type="file" accept="image/*" onChange={handlePhotoChange} className="sr-only" />
                 </label>
-                <span className="absolute bottom-2 left-2 bg-black/50 text-white text-[9px] font-bold px-2 py-0.5 rounded-full pointer-events-none">
-                  Toucher pour changer
-                </span>
+                {!photoError && !uploadingPhoto && (
+                  <span className="absolute bottom-2 left-2 bg-black/50 text-white text-[9px] font-bold px-2 py-0.5 rounded-full pointer-events-none">
+                    Toucher pour changer
+                  </span>
+                )}
               </div>
             ) : (
               <div className="relative">
