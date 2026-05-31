@@ -36,6 +36,7 @@ const AjoutProduit = ({ isEmbedded = true, onFinished }: { isEmbedded?: boolean;
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(false);
   const [uploadingPhoto, setUploadingPhoto] = useState(false);
+  const [photoError, setPhotoError] = useState(false);
 
   const set = (field: string, value: string | boolean) => {
     setFormData(prev => ({ ...prev, [field]: value }));
@@ -47,12 +48,11 @@ const AjoutProduit = ({ isEmbedded = true, onFinished }: { isEmbedded?: boolean;
     if (!file) return;
     if (file.size > 10 * 1024 * 1024) { showToast('La photo ne doit pas dépasser 10 Mo'); return; }
 
-    // Show local preview immediately
+    setPhotoError(false);
     const reader = new FileReader();
     reader.onloadend = () => setFormData(prev => ({ ...prev, photoPreview: reader.result as string }));
     reader.readAsDataURL(file);
 
-    // Upload to backend for compression + storage
     setUploadingPhoto(true);
     try {
       const fd = new FormData();
@@ -63,18 +63,22 @@ const AjoutProduit = ({ isEmbedded = true, onFinished }: { isEmbedded?: boolean;
         headers: token ? { Authorization: `Bearer ${token}` } : {},
         body: fd,
       });
-      if (!res.ok) throw new Error('Upload échoué');
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const data = await res.json();
       setFormData(prev => ({ ...prev, photoUrl: data.url }));
-      showToast('Photo uploadée et compressée');
-    } catch {
-      showToast('Erreur upload photo — le produit sera publié sans image');
+      showToast('Photo uploadée et compressée ✓');
+    } catch (err: any) {
+      setPhotoError(true);
+      showToast(`Échec upload : ${err?.message || 'erreur réseau'}`);
     } finally {
       setUploadingPhoto(false);
     }
   };
 
-  const removePhoto = () => setFormData(prev => ({ ...prev, photoUrl: '', photoPreview: '' }));
+  const removePhoto = () => {
+    setFormData(prev => ({ ...prev, photoUrl: '', photoPreview: '' }));
+    setPhotoError(false);
+  };
 
   const validate = (): boolean => {
     const e: Record<string, string> = {};
@@ -115,17 +119,25 @@ const AjoutProduit = ({ isEmbedded = true, onFinished }: { isEmbedded?: boolean;
     <div>
       {!compact && <label className="block text-xs font-bold text-primary/60 uppercase tracking-wider mb-1.5">Photo (optionnel)</label>}
       {formData.photoPreview ? (
-        <div className={cn('relative rounded-2xl overflow-hidden border border-surface-container', compact ? 'h-32' : 'h-48')}>
-          <img src={formData.photoPreview} alt="Preview" className="w-full h-full object-cover" />
+        <div className={cn('relative rounded-2xl overflow-hidden border-2 transition-colors', compact ? 'h-32' : 'h-48', photoError ? 'border-red-400' : 'border-surface-container')}>
+          <img src={formData.photoPreview} alt="Preview" className={cn('w-full h-full object-cover', photoError && 'opacity-60')} />
           {uploadingPhoto && (
-            <div className="absolute inset-0 bg-black/40 flex items-center justify-center">
+            <div className="absolute inset-0 bg-black/40 flex flex-col items-center justify-center gap-2">
               <div className="w-6 h-6 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+              <span className="text-white text-[10px] font-bold">Envoi en cours…</span>
+            </div>
+          )}
+          {photoError && !uploadingPhoto && (
+            <div className="absolute inset-0 bg-red-500/20 flex flex-col items-center justify-center gap-1.5">
+              <span className="text-red-700 text-xs font-black bg-white/90 px-3 py-1 rounded-full shadow-sm">
+                ✕ Échec upload — réessayer
+              </span>
             </div>
           )}
           <button onClick={removePhoto} className="absolute top-2 right-2 bg-white/90 text-red-500 p-1.5 rounded-lg shadow-sm z-10">
             <X size={14} />
           </button>
-          {formData.photoUrl && !uploadingPhoto && (
+          {formData.photoUrl && !uploadingPhoto && !photoError && (
             <span className="absolute bottom-2 left-2 bg-emerald-500 text-white text-[9px] font-bold px-2 py-0.5 rounded-full">
               ✓ Uploadée
             </span>
