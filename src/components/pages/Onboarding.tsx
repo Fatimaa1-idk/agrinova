@@ -170,7 +170,7 @@ const Onboarding = () => {
           <div className="w-full max-w-md flex flex-col gap-4">
             {/* Producteur — dark green card */}
             <button
-              onClick={() => navigate('inscription')}
+              onClick={() => navigate('inscription', { role: 'producteur' })}
               className="w-full rounded-3xl py-4 px-2 flex flex-col items-center gap-5 transition-all duration-200 hover:scale-[1.02] active:scale-[0.97] shadow-2xl"
               style={{ backgroundColor: '#2d5a3d' }}
             >
@@ -180,7 +180,7 @@ const Onboarding = () => {
 
             {/* Acheteur — amber/yellow card */}
             <button
-              onClick={() => navigate('inscription')}
+              onClick={() => navigate('inscription', { role: 'acheteur' })}
               className="w-full rounded-3xl py-4 px-2 flex flex-col items-center gap-5 transition-all duration-200 hover:scale-[1.02] active:scale-[0.97] shadow-2xl"
               style={{ backgroundColor: '#f5a623' }}
             >

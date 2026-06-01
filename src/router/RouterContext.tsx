@@ -30,10 +30,14 @@ interface RouterContextValue {
 const RouterContext = createContext<RouterContextValue>(null!);
 
 export function RouterProvider({ children }: { children: ReactNode }) {
-  const [currentPath, setCurrentPath] = useState<RoutePath>('onboarding');
+  const [currentPath, setCurrentPath] = useState<RoutePath>(() => {
+    const saved = localStorage.getItem('agrinova_path') as RoutePath | null;
+    return saved || 'onboarding';
+  });
   const [routeState, setRouteState] = useState<RouteState>({});
 
   const navigate = (path: RoutePath, state: RouteState = {}) => {
+    localStorage.setItem('agrinova_path', path);
     setCurrentPath(path);
     setRouteState(state);
     window.scrollTo(0, 0);
