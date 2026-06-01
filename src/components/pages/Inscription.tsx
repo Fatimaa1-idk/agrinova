@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { Button, Input, Icon } from '../ui';
+import { ZonePicker } from '../ui/ZonePicker';
 import { cn } from '../../lib/utils';
 import { useAuth } from '../../context/AuthContext';
 import { useToast } from '../../context/ToastContext';
@@ -30,9 +31,11 @@ const ROLES = [
 const Inscription = () => {
   const { login } = useAuth();
   const { showToast } = useToast();
-  const { navigate } = useRouter();
+  const { navigate, routeState } = useRouter();
 
-  const [formRole, setFormRole] = useState<'producteur' | 'acheteur'>('producteur');
+  const [formRole, setFormRole] = useState<'producteur' | 'acheteur'>(
+    (routeState.role as 'producteur' | 'acheteur') || 'producteur'
+  );
   const [formNom, setFormNom] = useState('');
   const [formEmail, setFormEmail] = useState('');
   const [formMdp, setFormMdp] = useState('');
@@ -161,13 +164,13 @@ const Inscription = () => {
             type="password"
             className="bg-white/10 border-white/20 text-white placeholder:text-white/40"
           />
-          <Input
-            label="Localisation (ville / région)"
-            value={formLoc}
-            onChange={(e) => setFormLoc(e.target.value)}
-            placeholder="Ex: Thiès, Kaolack, Dakar..."
-            className="bg-white/10 border-white/20 text-white placeholder:text-white/40"
-          />
+          <div className="bg-white/10 rounded-xl p-3">
+            <ZonePicker
+              value={formLoc}
+              onChange={setFormLoc}
+              label="Zone / Localisation"
+            />
+          </div>
         </div>
 
         {formErreur && (
